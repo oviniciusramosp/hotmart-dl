@@ -1,0 +1,8 @@
+# segredos e saidas — nunca commitar
+*.course.json
+token.txt
+/Curso/
+*.mp4
+*.part
+__pycache__/
+.DS_Store
