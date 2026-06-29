@@ -151,13 +151,16 @@ function selectedJobs() {
   return jobs;
 }
 
-function onDownloadHere() {
+function setReferer(on) { return new Promise((res) => chrome.runtime.sendMessage({ type: "hmReferer", on }, res)); }
+
+async function onDownloadHere() {
   if (dlRunning) { dlStop = true; $("#dlhere").textContent = "parando…"; return; }
   const jobs = selectedJobs();
   if (!jobs.length) { setStatus("Marque ao menos uma aula.", true); return; }
   dlStop = false; dlRunning = true;
   const btn = $("#dlhere"); btn.textContent = "■ Parar"; btn.classList.add("stop");
   $("#dlbar").style.display = "block"; $("#cmd").style.display = "none";
+  await setReferer(true);   // regra de Referer ativa só durante o download
   const n = currentNaming();
   const opts = { folderTpl: n.folder, fileTpl: n.file, doDesc: $("#optDesc").checked,
                  doAttach: $("#optAtt").checked, prefer: $("#res").value };
@@ -167,7 +170,8 @@ function onDownloadHere() {
       $("#dlbar").firstElementChild.style.width = (total ? Math.round(100 * done / total) : 0) + "%";
       setStatus(`${done}/${total}  ${current}${status ? " — " + status : ""}`);
     },
-    onDone: (sum) => {
+    onDone: async (sum) => {
+      await setReferer(false);   // desliga ao terminar
       dlRunning = false; const b = $("#dlhere");
       b.textContent = "⬇ Baixar selecionadas (aqui no navegador)"; b.classList.remove("stop");
       setStatus(`Fim. vídeos=${sum.video} descrições=${sum.desc} materiais=${sum.att} bloqueadas=${sum.locked} falhas=${sum.fail}`);

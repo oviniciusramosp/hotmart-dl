@@ -13,6 +13,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === "hmFilename" && msg.url && msg.filename) {
     pendingNames.set(msg.url, msg.filename);
     sendResponse({ ok: true });
+  } else if (msg && msg.type === "hmReferer") {
+    // liga/desliga a regra de Referer SÓ durante o download (não afeta navegação normal)
+    const opt = msg.on ? { enableRulesetIds: ["hotmart_referer"] } : { disableRulesetIds: ["hotmart_referer"] };
+    chrome.declarativeNetRequest.updateEnabledRulesets(opt)
+      .then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
   }
   return true;
 });

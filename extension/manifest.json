@@ -7,7 +7,7 @@
   "host_permissions": ["https://hotmart.com/*", "https://*.hotmart.com/*"],
   "declarative_net_request": {
     "rule_resources": [
-      { "id": "hotmart_referer", "enabled": true, "path": "rules.json" }
+      { "id": "hotmart_referer", "enabled": false, "path": "rules.json" }
     ]
   },
   "background": { "service_worker": "background.js" },
