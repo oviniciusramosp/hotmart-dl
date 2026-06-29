@@ -37,13 +37,19 @@ function updateLessonRow(m, a, status, pct) {
   else if (status === "ok") { sel.classList.add("busy", "done"); pr.innerHTML = CHECK; }
   else if (status === "erro") { sel.classList.add("busy", "done"); pr.innerHTML = XMARK; }
   else { sel.classList.remove("busy"); pr.innerHTML = ""; }
-  if (status === "ok" || status === "erro" || status === "bloqueada") { dlState[m + ":" + a] = true; updateModuleRing(m); }
+  if (status === "ok" || status === "erro" || status === "bloqueada") { dlState[m + ":" + a] = status; updateModuleRing(m); }
 }
 function updateModuleRing(m) {
   const mod = document.querySelector(`.mod[data-m="${m}"]`); if (!mod) return;
   const el = mod.querySelector(".modprog"); if (!el) return;
-  const tot = modTotal[m] || 0, done = Object.keys(dlState).filter((k) => k.startsWith(m + ":")).length;
-  el.innerHTML = tot ? ringSvg(Math.round(100 * done / tot)) : "";
+  const tot = modTotal[m] || 0;
+  const keys = Object.keys(dlState).filter((k) => k.startsWith(m + ":"));
+  if (!tot) { el.innerHTML = ""; return; }
+  if (keys.length >= tot) {                                    // módulo todo concluído
+    el.innerHTML = keys.every((k) => dlState[k] === "ok") ? CHECK : XMARK;
+  } else {
+    el.innerHTML = ringSvg(Math.round(100 * keys.length / tot));
+  }
 }
 
 async function panelScan() {
