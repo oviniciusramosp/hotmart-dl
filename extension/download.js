@@ -54,7 +54,10 @@ async function embedToM3u8(embedUrl, prefer) {
   return (prefer === "low" ? a[0] : a[a.length - 1]).url;
 }
 
-async function downloadHlsBlob(m3u8url, onProgress) {
+// Baixa os segmentos HLS (decifra AES-128) e devolve os TS já decifrados, EM ORDEM.
+// Pool de POOL fetches simultâneos: satura a rede sem multiplicar memória (1 vídeo por vez).
+// Se UM segmento falhar, o Promise.all rejeita e o vídeo inteiro erra (nunca salva parcial).
+async function downloadHlsParts(m3u8url, onProgress) {
   let pl = await fetch(m3u8url).then((r) => r.text());
   if (pl.includes("#EXT-X-STREAM-INF")) {  // master -> melhor variante
     const lines = pl.split("\n"), vs = [];
@@ -74,13 +77,35 @@ async function downloadHlsBlob(m3u8url, onProgress) {
   }
   const seq0 = parseInt((pl.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/) || [])[1] || "0", 10);
   const segs = pl.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).map((l) => new URL(l, m3u8url).href);
-  const parts = [];
-  for (let i = 0; i < segs.length; i++) {
-    const enc = await fetch(segs[i]).then((r) => r.arrayBuffer());
-    parts.push(key ? new Uint8Array(await crypto.subtle.decrypt({ name: "AES-CBC", iv: ivFixed || seqIV(seq0 + i) }, key, enc)) : new Uint8Array(enc));
-    if (onProgress) onProgress((i + 1) / segs.length);
+  const parts = new Array(segs.length);
+  let done = 0, next = 0;
+  const POOL = Math.min(5, segs.length || 1);  // ponytail: 5 fixo; subir se a rede aguentar e não tomar 429
+  async function worker() {
+    while (next < segs.length) {
+      const i = next++;
+      const enc = await fetch(segs[i]).then((r) => r.arrayBuffer());
+      parts[i] = key ? new Uint8Array(await crypto.subtle.decrypt({ name: "AES-CBC", iv: ivFixed || seqIV(seq0 + i) }, key, enc)) : new Uint8Array(enc);
+      done++;
+      if (onProgress) onProgress(done / segs.length);
+    }
   }
-  return new Blob(parts, { type: "video/mp2t" });
+  await Promise.all(Array.from({ length: POOL }, worker));
+  return parts;
+}
+
+// Reembrulha os TS decifrados em MP4 (mux.js, sem re-encode → qualidade idêntica, toca em tudo).
+// Lança se o muxjs não carregou ou a saída vier vazia — aí o chamador cai pro .ts.
+function tsToMp4(parts) {
+  const mux = globalThis.muxjs;
+  if (!(mux && mux.mp4 && mux.mp4.Transmuxer)) throw new Error("muxjs ausente");
+  const tx = new mux.mp4.Transmuxer({ remux: true });
+  let init = null, finished = false; const chunks = [];
+  tx.on("data", (seg) => { if (!init) init = seg.initSegment; chunks.push(seg.data); });
+  tx.on("done", () => { finished = true; });
+  for (let i = 0; i < parts.length; i++) tx.push(parts[i]);  // push em ordem; eventos são síncronos
+  tx.flush();
+  if (!finished || !init || !chunks.length) throw new Error("transmux vazio");
+  return new Blob([init, ...chunks], { type: "video/mp4" });
 }
 
 function blobToDataUri(blob) { return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); }); }
@@ -115,8 +140,11 @@ async function downloadOne(job, D, opts, onProg) {
       const embed = mediaEmbed(lj);
       if (embed) {
         const m3u8 = await embedToM3u8(embed, opts.prefer);
-        const blob = await downloadHlsBlob(m3u8, (p) => onProg("baixando", p));
-        await saveBlob(blob, base + ".ts");
+        const parts = await downloadHlsParts(m3u8, (p) => onProg("baixando", p));
+        let blob, ext;
+        try { blob = tsToMp4(parts); ext = ".mp4"; }            // sem re-encode, toca em tudo
+        catch (e) { blob = new Blob(parts, { type: "video/mp2t" }); ext = ".ts"; }  // fallback seguro
+        await saveBlob(blob, base + ext);
         out.video = 1;
       }
     } catch (e) { onProg("erro", null); out.fail = 1; }
