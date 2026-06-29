@@ -69,7 +69,7 @@ function buildTree() {
       cb.type = "checkbox";
       cb.dataset.m = M.m; cb.dataset.a = l.a; cb.dataset.mod = M.name; cb.dataset.les = l.name;
       if (l.locked) cb.disabled = true;          // bloqueada: nao da pra baixar
-      else if (l.hasVideo) cb.checked = true;     // sem video fica selecionavel (descricao/material)
+      else cb.checked = true;                    // tudo o resto (incl. sem video) marcado por padrao
       les.appendChild(cb);
       const nm = document.createElement("span");
       nm.className = "nm"; nm.textContent = `M${pad2(M.m)}A${pad2(l.a)} · ${l.name}`;
@@ -128,10 +128,11 @@ function exportJSON() {
   const fname = (DATA.subdomain || "curso") + ".course.json";
   chrome.downloads.download({ url, filename: fname, saveAs: false }, () => {
     const n = course.modules.reduce((s, M) => s + M.lessons.length, 0);
-    setStatus(`✓ ${fname} salvo (${n} vídeos).`);
+    setStatus(`✓ ${fname} salvo (${n} aulas).`);
+    const cmd = "cd ~/Documents/Apps/ChromePlugins/hotmart-dl && python3 hotmart_dl.py";
     $("#cmd").style.display = "block";
-    $("#cmd").innerHTML = '<span class="copy" id="cp">copiar</span>No terminal:<br>python3 hotmart_dl.py';
-    $("#cp").addEventListener("click", () => navigator.clipboard.writeText("python3 hotmart_dl.py"));
+    $("#cmd").innerHTML = '<span class="copy" id="cp">copiar</span>No terminal:<br>' + cmd;
+    $("#cp").addEventListener("click", () => navigator.clipboard.writeText(cmd));
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   });
 }
