@@ -60,7 +60,7 @@
   if (!productId) return { error: "Abra a pagina DENTRO de um curso (/club/.../products/<id>/content/...)." };
   if (!appName) return { error: "Aguarde a pagina carregar e navegue 1 aula; depois reabra a extensao." };
   var tree = findTree();
-  if (!tree) return { error: "Estrutura do curso nao encontrada nesta pagina." };
+  if (!tree) return { error: "Estrutura nao encontrada. Janela estreita? O Hotmart troca pro layout mobile (sem a lista de modulos) — alargue a janela do navegador e clique em reler." };
 
   var modules = tree.map(function (M, i) {
     var L = M.pages || M.lessons || M.contents || M.children || M.items || [];

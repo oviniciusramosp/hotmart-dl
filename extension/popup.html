@@ -41,14 +41,24 @@
     .les { display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 6px; }
     .les:hover { background: #1b1e26; }
     .les .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .les .dur { font-size: 11px; color: #7c8597; font-variant-numeric: tabular-nums; }
+    .les .dur { font-size: 11px; color: #7c8597; font-variant-numeric: tabular-nums; width: 38px; text-align: right; flex: none; }
     .les.novid .nm { color: #6b7280; }
     .badge { font-size: 10px; padding: 1px 5px; border-radius: 5px; background: #2a2e37; color: #9aa3b2; }
-    .icons { display: flex; align-items: center; gap: 4px; }
+    .icons { display: flex; align-items: center; gap: 2px; flex: none; }
+    .slot { width: 18px; display: inline-flex; align-items: center; justify-content: center; }
+    .slot.m { width: auto; min-width: 18px; }
     .ic { display: inline-flex; }
     .ic.v { color: #7fb0ff; } .ic.d { color: #6ee7a8; } .ic.m { color: #f0c777; } .ic.l { color: #c79be0; }
     .cnt { font-size: 10px; color: #f0c777; margin-left: -2px; }
-    .prog, .modprog { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; }
+    /* seletor: checkbox e progresso/check ocupam a MESMA célula (mesmo tamanho) */
+    .sel { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .sel input[type=checkbox] { width: 16px; height: 16px; margin: 0; }
+    .sel .prog { display: none; }
+    .sel.busy input[type=checkbox] { display: none; }
+    .sel.busy .prog { display: inline-flex; }
+    .sel.done .prog { cursor: pointer; }
+    .prog, .modprog { width: 16px; height: 16px; align-items: center; justify-content: center; }
+    .modprog { display: inline-flex; }
     .spin { animation: hmspin 0.8s linear infinite; transform-origin: 8px 8px; }
     @keyframes hmspin { to { transform: rotate(360deg); } }
     input[type=checkbox] { width: 15px; height: 15px; accent-color: #4f8cff; }
@@ -71,7 +81,7 @@
 <body>
   <header>
     <div class="row" style="justify-content:space-between">
-      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.1.1</span></h1>
+      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.1.2</span></h1>
       <button id="refresh" title="Reler o curso da aba atual">↻ reler</button>
     </div>
     <div id="course">Lendo o curso…</div>

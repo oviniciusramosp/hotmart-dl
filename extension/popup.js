@@ -30,12 +30,13 @@ const modTotal = {};    // m -> nº de aulas selecionadas no módulo
 const lessonRow = (m, a) => document.querySelector(`.les[data-m="${m}"][data-a="${a}"]`);
 function updateLessonRow(m, a, status, pct) {
   const row = lessonRow(m, a); if (!row) return;
-  const pr = row.querySelector(".prog");
-  if (status === "baixando" && pct != null) pr.innerHTML = ringSvg(Math.round(pct * 100));
-  else if (status === "resolvendo" || status === "descricao" || status === "materiais") pr.innerHTML = SPIN;
-  else if (status === "ok") pr.innerHTML = CHECK;
-  else if (status === "erro") pr.innerHTML = XMARK;
-  else pr.innerHTML = "";
+  const sel = row.querySelector(".sel"), pr = sel.querySelector(".prog");
+  sel.classList.remove("done");
+  if (status === "baixando" && pct != null) { sel.classList.add("busy"); pr.innerHTML = ringSvg(Math.round(pct * 100)); }
+  else if (status === "resolvendo" || status === "descricao" || status === "materiais") { sel.classList.add("busy"); pr.innerHTML = SPIN; }
+  else if (status === "ok") { sel.classList.add("busy", "done"); pr.innerHTML = CHECK; }
+  else if (status === "erro") { sel.classList.add("busy", "done"); pr.innerHTML = XMARK; }
+  else { sel.classList.remove("busy"); pr.innerHTML = ""; }
   if (status === "ok" || status === "erro" || status === "bloqueada") { dlState[m + ":" + a] = true; updateModuleRing(m); }
 }
 function updateModuleRing(m) {
@@ -55,9 +56,8 @@ async function panelScan() {
       try {
         const { hasDesc, att } = await scanLesson(l.hash, DATA);
         const row = lessonRow(l.m, l.a); if (!row) continue;
-        const ic = row.querySelector(".icons");
-        if (hasDesc) ic.insertAdjacentHTML("beforeend", IC.desc);
-        if (att > 0) ic.insertAdjacentHTML("beforeend", IC.material + (att > 1 ? `<span class="cnt">${att}</span>` : ""));
+        if (hasDesc) row.querySelector(".icons .slot.d").innerHTML = IC.desc;
+        if (att > 0) row.querySelector(".icons .slot.m").innerHTML = IC.material + (att > 1 ? `<span class="cnt">${att}</span>` : "");
       } catch (e) {}
     }
   };
@@ -121,22 +121,35 @@ function buildTree() {
       const les = document.createElement("label");
       les.className = "les" + (l.hasVideo ? "" : " novid") + (l.locked ? " locked" : "");
       les.dataset.m = M.m; les.dataset.a = l.a;
+      // seletor: checkbox <-> progresso/check ocupam a mesma célula (mesmo tamanho)
+      const sel = document.createElement("span"); sel.className = "sel";
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.dataset.m = M.m; cb.dataset.a = l.a; cb.dataset.mod = M.name; cb.dataset.les = l.name;
       if (l.locked) cb.disabled = true; else cb.checked = true;  // sem vídeo fica marcado (desc/material)
-      les.appendChild(cb);
+      sel.appendChild(cb);
+      const prog = document.createElement("span"); prog.className = "prog"; sel.appendChild(prog);
+      les.appendChild(sel);
       const nm = document.createElement("span");
       nm.className = "nm"; nm.textContent = `M${pad2(M.m)}A${pad2(l.a)} · ${l.name}`;
       les.appendChild(nm);
+      // ícones em colunas fixas: vídeo | descrição | material (alinham entre as linhas)
       const icons = document.createElement("span"); icons.className = "icons";
-      icons.innerHTML = l.locked ? IC.lock : (l.hasVideo ? IC.video : "");  // desc/material vêm do scan
+      icons.innerHTML = `<span class="slot v">${l.locked ? IC.lock : (l.hasVideo ? IC.video : "")}</span>`
+                      + `<span class="slot d"></span><span class="slot m"></span>`;  // desc/material vêm do scan
       les.appendChild(icons);
-      const prog = document.createElement("span"); prog.className = "prog"; les.appendChild(prog);
       const dur = document.createElement("span"); dur.className = "dur";
       dur.textContent = (!l.locked && l.hasVideo) ? fmtDur(l.dur) : "";
       les.appendChild(dur);
       cb.addEventListener("change", () => { syncModChk(mod, M); updatePreview(); });
+      // clicar no check (aula concluída) volta a mostrar o checkbox pra re-selecionar
+      prog.addEventListener("click", (e) => {
+        if (!sel.classList.contains("done")) return;
+        e.preventDefault(); e.stopPropagation();
+        sel.classList.remove("busy", "done"); prog.innerHTML = "";
+        cb.checked = true; delete dlState[M.m + ":" + l.a];
+        updateModuleRing(M.m); syncModChk(mod, M); updatePreview();
+      });
       wrap.appendChild(les);
     });
     mod.appendChild(wrap);
