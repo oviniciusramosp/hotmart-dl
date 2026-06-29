@@ -9,6 +9,7 @@ const PRESETS = [
   { id: "custom", label: "Personalizado…", folder: "", file: "" },
 ];
 let DATA = null;
+let dlRunning = false, dlStop = false;
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const clean = (s) => String(s || "").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim().slice(0, 120) || "x";
@@ -140,6 +141,40 @@ function exportJSON() {
 
 function setStatus(msg, err) { const s = $("#status"); s.textContent = msg; s.className = err ? "err" : ""; }
 
+function selectedJobs() {
+  const sel = new Set(selectedLessons().map((x) => x.m + ":" + x.a));
+  const jobs = [];
+  DATA.modules.forEach((M) => M.lessons.forEach((l) => {
+    if (sel.has(M.m + ":" + l.a) && !l.locked)
+      jobs.push({ m: M.m, mname: M.name, a: l.a, name: l.name, hash: l.hash, hasVideo: !!l.hasVideo, locked: !!l.locked });
+  }));
+  return jobs;
+}
+
+function onDownloadHere() {
+  if (dlRunning) { dlStop = true; $("#dlhere").textContent = "parando…"; return; }
+  const jobs = selectedJobs();
+  if (!jobs.length) { setStatus("Marque ao menos uma aula.", true); return; }
+  dlStop = false; dlRunning = true;
+  const btn = $("#dlhere"); btn.textContent = "■ Parar"; btn.classList.add("stop");
+  $("#dlbar").style.display = "block"; $("#cmd").style.display = "none";
+  const n = currentNaming();
+  const opts = { folderTpl: n.folder, fileTpl: n.file, doDesc: $("#optDesc").checked,
+                 doAttach: $("#optAtt").checked, prefer: $("#res").value };
+  downloadCourse(jobs, DATA, opts, {
+    stopped: () => dlStop,
+    onUpdate: ({ done, total, current, status }) => {
+      $("#dlbar").firstElementChild.style.width = (total ? Math.round(100 * done / total) : 0) + "%";
+      setStatus(`${done}/${total}  ${current}${status ? " — " + status : ""}`);
+    },
+    onDone: (sum) => {
+      dlRunning = false; const b = $("#dlhere");
+      b.textContent = "⬇ Baixar selecionadas (aqui no navegador)"; b.classList.remove("stop");
+      setStatus(`Fim. vídeos=${sum.video} descrições=${sum.desc} materiais=${sum.att} bloqueadas=${sum.locked} falhas=${sum.fail}`);
+    },
+  });
+}
+
 async function init() {
   const rb = $("#refresh");
   if (rb) rb.addEventListener("click", () => location.reload());  // re-lê o curso da aba atual
@@ -178,7 +213,7 @@ async function init() {
   $("#all").addEventListener("click", () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#none").addEventListener("click", () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#go").addEventListener("click", exportJSON);
-  $("#testdl").addEventListener("click", () => testDownloadOne(DATA, setStatus));
+  $("#dlhere").addEventListener("click", onDownloadHere);
   updatePreview();
 }
 init();

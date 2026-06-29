@@ -49,6 +49,11 @@
     #go { background: #4f8cff; color: #fff; border: 0; border-radius: 8px; padding: 9px; font-weight: 700;
           cursor: pointer; font-size: 13px; }
     #go:disabled { background: #2a2e37; color: #6b7280; cursor: default; }
+    #dlhere { background: #1f6f43; color: #fff; border: 0; border-radius: 8px; padding: 10px; font-weight: 700;
+              cursor: pointer; font-size: 13px; }
+    #dlhere.stop { background: #6f2a2a; }
+    #dlbar { height: 6px; background: #1b1e26; border-radius: 4px; overflow: hidden; }
+    #dlbar > span { display: block; height: 100%; width: 0; background: #4f8cff; transition: width .2s; }
     #status { font-size: 12px; min-height: 14px; color: #9aa3b2; }
     #status.err { color: #ff7a7a; }
     #cmd { display: none; background: #0f1116; border: 1px solid #2a2e37; border-radius: 7px; padding: 8px;
@@ -91,9 +96,10 @@
   <div id="tree"></div>
 
   <footer>
-    <button id="go" disabled>Exportar seleção (course.json)</button>
-    <button id="testdl" style="background:#232734;color:#cbd2e0;border:1px solid #2a2e37">▶ Testar download (1 aula, no navegador)</button>
+    <button id="dlhere">⬇ Baixar selecionadas (aqui no navegador)</button>
+    <div id="dlbar" style="display:none"><span></span></div>
     <div id="status"></div>
+    <button id="go" disabled style="background:#232734;color:#cbd2e0;border:1px solid #2a2e37;font-weight:400">…ou exportar course.json (pro app/CLI)</button>
     <div id="cmd"></div>
   </footer>
 
