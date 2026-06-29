@@ -1,11 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Hotmart Course Extractor (hotmart-dl)",
-  "version": "1.0.0",
-  "description": "Na pagina de um curso Hotmart Club, clique pra exportar a estrutura + sessao num course.json e baixar com o CLI hotmart-dl.",
-  "permissions": ["activeTab", "scripting"],
+  "version": "2.0.0",
+  "description": "Na pagina de um curso Hotmart Club, escolha as aulas e o padrao de nome e exporte um course.json pra baixar com o CLI hotmart-dl.",
+  "permissions": ["activeTab", "scripting", "downloads"],
   "host_permissions": ["https://hotmart.com/*", "https://*.hotmart.com/*"],
-  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
       "matches": ["https://hotmart.com/*"],
@@ -14,5 +13,8 @@
       "world": "MAIN"
     }
   ],
-  "action": { "default_title": "Exportar curso Hotmart (course.json)" }
+  "action": { "default_popup": "popup.html", "default_title": "hotmart-dl — exportar curso" },
+  "web_accessible_resources": [
+    { "resources": ["extractor.js"], "matches": ["https://*.hotmart.com/*"] }
+  ]
 }

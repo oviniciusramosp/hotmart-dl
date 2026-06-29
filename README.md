@@ -32,21 +32,35 @@ brew install yt-dlp ffmpeg python    # macOS
 2. No navegador, abra a página de extensões (`chrome://extensions`), ligue **Modo do desenvolvedor**.
 3. **Carregar sem compactação** (Load unpacked) → selecione a pasta **`extension/`**.
 
-## 2) Exportar o curso
+## 2) Escolher e exportar (UI)
 
 1. Abra o curso no Hotmart Club, **logado**, dentro de uma aula (`/club/<sub>/products/<id>/content/...`).
-2. Clique no ícone da extensão **“Exportar curso Hotmart”**.
-3. Um arquivo `<subdomínio>.course.json` é baixado para `~/Downloads`. (Aparece um aviso verde com a contagem de módulos/vídeos.)
+2. Clique no ícone da extensão. O popup mostra o curso que ele encontrou:
+   - **árvore de módulos/aulas** com checkboxes (vídeos já marcados; aulas sem vídeo aparecem como “sem vídeo”);
+   - **padrão de nome** (presets ou template personalizado) com pré-visualização ao vivo;
+   - botões **Marcar todos / Nenhum** e seleção por módulo.
+3. Marque o que quer, escolha o padrão e clique **Exportar seleção** → baixa um `<subdomínio>.course.json` para `~/Downloads`.
+
+Padrões de nome disponíveis (ou crie o seu com `{mm} {aa} {module} {lesson}`):
+
+| Preset | Resultado |
+|---|---|
+| Módulo + M00A00 *(padrão)* | `Modulo 17 - Pães/M17A03 - Batimento.mp4` |
+| Módulo + 00 - título | `Modulo 17 - Pães/03 - Batimento.mp4` |
+| Pasta do módulo + título | `Pães/Batimento.mp4` |
+| Tudo numa pasta + M00A00 | `M17A03 - Batimento.mp4` |
 
 ## 3) Baixar
 
 ```bash
 python3 hotmart_dl.py                       # usa o course.json mais recente de ~/Downloads
 python3 hotmart_dl.py meucurso.course.json  # ou aponte o arquivo
-python3 hotmart_dl.py --modules 17 18 19    # só alguns módulos
+python3 hotmart_dl.py --modules 17 18 19    # filtro extra de módulos (opcional)
 python3 hotmart_dl.py --out "~/Downloads/Meu Curso"
 python3 hotmart_dl.py --test                # baixa só a 1ª aula, pra validar
 ```
+
+O padrão de nome escolhido na UI vai dentro do `course.json` e é aplicado aqui automaticamente.
 
 Re‑rodar **continua de onde parou** (pula MP4 já completos). Se aparecer **HTTP 401/403**, a sessão expirou: clique na extensão de novo pra gerar um `course.json` novo e re‑rode.
 
@@ -76,6 +90,7 @@ yt-dlp <m3u8 melhor qualidade>        → baixa + decifra AES-128 → mp4
   "productId": "5693452",
   "appName": "app-club-consumer_vX.Y.Z_production",
   "token": "<bearer jwt da sua sessão>",
+  "naming": { "folder": "Modulo {mm} - {module}", "file": "M{mm}A{aa} - {lesson}" },
   "modules": [
     { "m": 1, "name": "Módulo 1", "lessons": [
       { "a": 1, "name": "Aula 1", "hash": "abc123", "hasVideo": true, "dur": 155 }

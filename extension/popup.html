@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { width: 460px; max-height: 600px; margin: 0; font: 13px/1.4 -apple-system, system-ui, sans-serif;
+           background: #16181d; color: #e7e9ee; display: flex; flex-direction: column; }
+    header { padding: 12px 14px 8px; border-bottom: 1px solid #2a2e37; }
+    h1 { margin: 0; font-size: 14px; font-weight: 700; }
+    #course { margin: 2px 0 0; font-size: 12px; color: #9aa3b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .controls { padding: 8px 14px; border-bottom: 1px solid #2a2e37; display: flex; flex-direction: column; gap: 8px; }
+    label.field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #9aa3b2; }
+    select, input[type=text] { background: #0f1116; color: #e7e9ee; border: 1px solid #2a2e37;
+           border-radius: 7px; padding: 6px 8px; font: inherit; }
+    .preview { font-size: 11px; color: #6ee7a8; font-family: ui-monospace, monospace; word-break: break-all; }
+    .bulk { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+    .bulk button { background: #232734; color: #cbd2e0; border: 1px solid #2a2e37; border-radius: 6px;
+           padding: 4px 8px; cursor: pointer; font: inherit; }
+    .bulk button:hover { background: #2c313f; }
+    .count { margin-left: auto; color: #9aa3b2; }
+    #tree { overflow-y: auto; flex: 1; padding: 4px 8px; }
+    .mod { margin: 4px 0; border: 1px solid #232734; border-radius: 8px; overflow: hidden; }
+    .mod-head { display: flex; align-items: center; gap: 8px; padding: 7px 9px; background: #1b1e26; cursor: pointer; }
+    .mod-head .twi { width: 12px; color: #7c8597; transition: transform .12s; }
+    .mod.open .twi { transform: rotate(90deg); }
+    .mod-name { font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mod-meta { font-size: 11px; color: #7c8597; }
+    .lessons { display: none; padding: 2px 6px 6px 26px; }
+    .mod.open .lessons { display: block; }
+    .les { display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 6px; }
+    .les:hover { background: #1b1e26; }
+    .les .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .les .dur { font-size: 11px; color: #7c8597; font-variant-numeric: tabular-nums; }
+    .les.novid .nm { color: #6b7280; }
+    .badge { font-size: 10px; padding: 1px 5px; border-radius: 5px; background: #2a2e37; color: #9aa3b2; }
+    input[type=checkbox] { width: 15px; height: 15px; accent-color: #4f8cff; }
+    footer { padding: 10px 14px; border-top: 1px solid #2a2e37; display: flex; flex-direction: column; gap: 8px; }
+    #go { background: #4f8cff; color: #fff; border: 0; border-radius: 8px; padding: 9px; font-weight: 700;
+          cursor: pointer; font-size: 13px; }
+    #go:disabled { background: #2a2e37; color: #6b7280; cursor: default; }
+    #status { font-size: 12px; min-height: 14px; color: #9aa3b2; }
+    #status.err { color: #ff7a7a; }
+    #cmd { display: none; background: #0f1116; border: 1px solid #2a2e37; border-radius: 7px; padding: 8px;
+           font-family: ui-monospace, monospace; font-size: 11px; color: #cbd2e0; }
+    #cmd .copy { float: right; cursor: pointer; color: #4f8cff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>hotmart-dl</h1>
+    <div id="course">Lendo o curso…</div>
+  </header>
+
+  <div class="controls" id="controls" style="display:none">
+    <label class="field">Padrão de nome
+      <select id="preset"></select>
+    </label>
+    <label class="field" id="customWrap" style="display:none">Template (use {mm} {aa} {module} {lesson})
+      <input id="folderTpl" type="text" placeholder="Modulo {mm} - {module}">
+      <input id="fileTpl" type="text" placeholder="M{mm}A{aa} - {lesson}">
+    </label>
+    <div class="preview" id="preview"></div>
+    <div class="bulk">
+      <button id="all">Marcar todos</button>
+      <button id="none">Nenhum</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="tree"></div>
+
+  <footer>
+    <button id="go" disabled>Exportar seleção (course.json)</button>
+    <div id="status"></div>
+    <div id="cmd"></div>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

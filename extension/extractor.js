@@ -1,19 +1,7 @@
-// Roda no MAIN world quando voce clica no icone da extensao, numa pagina de curso
-// Hotmart Club. Extrai: token de sessao, productId/subdomain/appName e a arvore
-// completa de modulos/aulas (da memoria React), e baixa um <subdomain>.course.json.
+// Roda no MAIN world (injetado pelo popup via chrome.scripting.executeScript).
+// NAO baixa nada: apenas EXTRAI e RETORNA o objeto do curso pro popup renderizar.
+// (o valor da ultima expressao do arquivo e o que o executeScript devolve.)
 (function () {
-  function toast(msg, bad) {
-    var d = document.createElement("div");
-    d.textContent = msg;
-    d.style.cssText =
-      "position:fixed;z-index:2147483647;left:50%;top:24px;transform:translateX(-50%);" +
-      "padding:12px 18px;border-radius:10px;font:600 14px/1.3 system-ui;color:#fff;" +
-      "box-shadow:0 8px 30px rgba(0,0,0,.35);background:" + (bad ? "#c0392b" : "#1e824c");
-    document.body.appendChild(d);
-    setTimeout(function () { d.remove(); }, 5000);
-  }
-
-  // --- localizar a arvore de modulos/aulas via React fiber ---
   function getFiber(el) {
     for (var k in el) {
       if (k.indexOf("__reactFiber$") === 0 || k.indexOf("__reactInternalInstance$") === 0) return el[k];
@@ -27,8 +15,7 @@
        Array.isArray(o.children) || Array.isArray(o.items));
   }
   function findTree() {
-    var t0 = performance.now();
-    var starts = [];
+    var t0 = performance.now(), starts = [];
     var nx = document.querySelector("#__next");
     if (nx) { var f = getFiber(nx); if (f) starts.push(f); }
     var asides = document.querySelectorAll("aside,#app-space-microfront");
@@ -38,9 +25,9 @@
       var n = q.shift();
       if (!n || typeof n !== "object" || visited.has(n)) continue;
       visited.add(n); seen++;
-      var keys = ["memoizedProps", "memoizedState"];
-      for (var ki = 0; ki < keys.length && !found; ki++) {
-        var p = n[keys[ki]];
+      var kk = ["memoizedProps", "memoizedState"];
+      for (var ki = 0; ki < kk.length && !found; ki++) {
+        var p = n[kk[ki]];
         if (p && typeof p === "object") {
           for (var k in p) {
             var v; try { v = p[k]; } catch (e) { continue; }
@@ -61,7 +48,6 @@
     return found;
   }
 
-  // --- auth + identificadores ---
   var token = "";
   try { token = localStorage.getItem("token") || ""; } catch (e) {}
   var meta = window.__hotmartMeta || {};
@@ -70,12 +56,11 @@
   var productId = meta.productId || (mu ? mu[2] : "");
   var appName = meta.appName || "";
 
-  if (!token) { toast("Hotmart: token nao encontrado — voce esta logado nesta aba?", true); return; }
-  if (!productId) { toast("Hotmart: abra a pagina DENTRO de um curso (/club/.../products/<id>/content/...).", true); return; }
-  if (!appName) { toast("Hotmart: aguarde a pagina carregar e navegue 1 aula, depois clique de novo.", true); return; }
-
+  if (!token) return { error: "Token nao encontrado — voce esta logado nesta aba?" };
+  if (!productId) return { error: "Abra a pagina DENTRO de um curso (/club/.../products/<id>/content/...)." };
+  if (!appName) return { error: "Aguarde a pagina carregar e navegue 1 aula; depois reabra a extensao." };
   var tree = findTree();
-  if (!tree) { toast("Hotmart: estrutura do curso nao encontrada nesta pagina.", true); return; }
+  if (!tree) return { error: "Estrutura do curso nao encontrada nesta pagina." };
 
   var modules = tree.map(function (M, i) {
     var L = M.pages || M.lessons || M.contents || M.children || M.items || [];
@@ -93,21 +78,7 @@
       })
     };
   });
-
   var courseName = (document.title || "Curso Hotmart").replace(/\s*\|\s*Hotmart.*/i, "").trim() || subdomain;
-  var course = { course: courseName, subdomain: subdomain, productId: productId,
-                 appName: appName, token: token, modules: modules };
-
-  var nVids = 0, nLes = 0;
-  modules.forEach(function (M) { M.lessons.forEach(function (l) { nLes++; if (l.hasVideo) nVids++; }); });
-
-  var blob = new Blob([JSON.stringify(course, null, 2)], { type: "application/json" });
-  var a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = (subdomain || "curso") + ".course.json";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(function () { URL.revokeObjectURL(a.href); }, 8000);
-
-  toast("course.json baixado: " + modules.length + " modulos, " + nVids + " videos / " + nLes + " aulas. " +
-        "Agora rode: python3 hotmart_dl.py");
+  return { course: courseName, subdomain: subdomain, productId: productId,
+           appName: appName, token: token, modules: modules };
 })();

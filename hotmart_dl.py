@@ -40,6 +40,14 @@ def sanitize(name):
     return name[:120] or "sem-nome"
 
 
+def render_name(tpl, m, a, module, lesson):
+    """Aplica o template de nome ({mm} {m} {aa} {a} {module} {lesson})."""
+    return (str(tpl)
+            .replace("{mm}", f"{m:02d}").replace("{m}", str(m))
+            .replace("{aa}", f"{a:02d}").replace("{a}", str(a))
+            .replace("{module}", sanitize(module)).replace("{lesson}", sanitize(lesson)))
+
+
 def http_get(url, headers=None, timeout=60):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -159,6 +167,9 @@ def run(args):
     out = os.path.expanduser(args.out) if args.out else \
         os.path.expanduser(os.path.join("~/Downloads", sanitize(data.get("course") or "Curso Hotmart")))
     only = set(args.modules) if args.modules else None
+    naming = data.get("naming") or {}
+    folder_tpl = naming.get("folder", "Modulo {mm} - {module}")
+    file_tpl = naming.get("file") or "M{mm}A{aa} - {lesson}"
 
     jobs = list(jobs_iter(data["modules"], only))
     if args.test:
@@ -168,8 +179,8 @@ def run(args):
     suspeitos = []
     for m, mname, a, lname, h, dur in jobs:
         tag = f"M{m:02d}A{a:02d}"
-        out_dir = os.path.join(out, f"Modulo {m:02d} - {sanitize(mname)}")
-        out_no_ext = os.path.join(out_dir, f"{tag} - {sanitize(lname)}")
+        out_dir = os.path.join(out, render_name(folder_tpl, m, a, mname, lname)) if folder_tpl.strip() else out
+        out_no_ext = os.path.join(out_dir, render_name(file_tpl, m, a, mname, lname))
         final = out_no_ext + ".mp4"
         if os.path.exists(final) and os.path.getsize(final) > 100_000:
             clean_temp(out_no_ext)  # varre orfaos ao lado de um arquivo ja pronto
@@ -208,6 +219,9 @@ def run(args):
 
 def self_test():
     assert not FORBIDDEN.search(sanitize('A/B: "c"? <x>'))
+    assert render_name("M{mm}A{aa} - {lesson}", 7, 3, "Mod", "Aula/X") == "M07A03 - Aula-X"
+    assert render_name("{aa} - {lesson}", 1, 12, "M", "X") == "12 - X"
+    assert render_name("{module}", 5, 1, "Intro", "y") == "Intro"
     sample = ('<script id="__NEXT_DATA__" type="application/json">' + json.dumps(
         {"props": {"pageProps": {"applicationData": {"mediaAssets": [
             {"url": "https://x/360.m3u8", "height": 360},
