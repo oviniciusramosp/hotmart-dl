@@ -16,14 +16,18 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue, Empty
 
 import hotmart_dl as core
 
 TERMINAL = {"ok", "suspeito", "bloqueada", "sem-conteudo", "erro"}
+_BC_LOCK = threading.Lock()
+_BC_LAST = [0.0]
 
 PORT = 8765
 COURSE = {}
@@ -44,6 +48,7 @@ def build_items():
             ITEMS.append({"i": i, "m": M["m"], "mname": M["name"], "a": l["a"],
                           "lname": l["name"], "hash": l["hash"], "dur": l.get("dur") or 0,
                           "hasVideo": bool(l.get("hasVideo")), "locked": bool(l.get("locked")),
+                          "tdesc": None, "tattach": None, "scanned": False,
                           "status": "fila", "pct": 0, "hpx": None, "extra": ""})
             i += 1
     STATE["total"] = len(ITEMS)
@@ -66,6 +71,44 @@ def broadcast():
 
 def set_item(it, **kw):
     it.update(kw)
+    broadcast()
+
+
+def throttled_broadcast():
+    with _BC_LOCK:
+        now = time.time()
+        if now - _BC_LAST[0] < 0.3:
+            return
+        _BC_LAST[0] = now
+    broadcast()
+
+
+def scan_one(it, token, pid, app):
+    if it["locked"]:
+        it["scanned"] = True
+        return
+    try:
+        lj = core.fetch_lesson(it["hash"], token, pid, app)
+        it["tdesc"] = bool((lj.get("content") or "").strip())
+    except Exception:
+        it["tdesc"] = None
+    try:
+        it["tattach"] = len(core.fetch_attachments(it["hash"], token, pid, app))
+    except Exception:
+        it["tattach"] = 0
+    it["scanned"] = True
+    throttled_broadcast()
+
+
+def scan_all():
+    """Em background: descobre quais aulas têm descrição/material pra mostrar os selos."""
+    try:
+        token, pid, app = COURSE["token"], COURSE["productId"], COURSE["appName"]
+        todo = [it for it in ITEMS if not it.get("scanned")]
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            list(ex.map(lambda it: scan_one(it, token, pid, app), todo))
+    except Exception:
+        pass
     broadcast()
 
 
@@ -213,6 +256,9 @@ button{border:0;border-radius:8px;padding:8px 14px;font:600 13px inherit;cursor:
 .tgl{display:flex;align-items:center;gap:6px;font-size:12px;color:#9aa3b2;cursor:pointer}.tgl input{width:auto}
 .dur{color:#7c8597;font-size:12px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
 .tag{color:#7c8597;font-size:12px;min-width:62px}
+.types{display:flex;gap:4px}
+.chip{font-size:10px;padding:1px 6px;border-radius:5px;white-space:nowrap}
+.cv{background:#10233f;color:#7fb0ff}.cd{background:#0f2b24;color:#6ee7a8}.cm{background:#332a12;color:#f0c777}.cs{background:#1b1e26;color:#5a6172}
 </style></head><body><div class=wrap>
 <h1>hotmart-dl</h1><div class=sub id=course>carregando…</div>
 <div class=bar><i id=overall></i></div>
@@ -242,9 +288,14 @@ function render(d){
     const r=document.createElement('div');r.className='row';
     const tag='M'+String(it.m).padStart(2,'0')+'A'+String(it.a).padStart(2,'0');
     const showPb=it.status==='baixando';
+    let types='';
+    if(it.hasVideo) types+='<span class="chip cv">vídeo</span>';
+    if(it.tdesc) types+='<span class="chip cd">desc</span>';
+    if(it.tattach>0) types+='<span class="chip cm">'+(it.tattach>1?it.tattach+' ':'')+'material</span>';
+    if(!it.scanned && !it.locked) types+='<span class="chip cs">…</span>';
     r.innerHTML='<span class=tag>'+tag+(it.hpx?' · '+it.hpx+'p':'')+'</span>'+
       '<span class=nm></span>'+
-      (it.extra?'<span class=extra>'+it.extra+'</span>':'')+
+      '<span class=types>'+types+'</span>'+
       (showPb?'<span class=pb><i style="width:'+it.pct+'%"></i></span>':'')+
       '<span class="st s-'+it.status+'">'+(it.status==='baixando'?it.pct+'%':it.status)+'</span>'+
       '<span class=dur>'+(it.hasVideo?fmt(it.dur):'')+'</span>';
@@ -332,6 +383,7 @@ def main(path=None):
     SETTINGS["out"] = os.path.expanduser(os.path.join("~/Downloads", core.sanitize(COURSE.get("course") or "Curso Hotmart")))
     SETTINGS["resolution"] = COURSE.get("resolution") or "high"
     build_items()
+    threading.Thread(target=scan_all, daemon=True).start()  # descobre desc/material p/ os selos
     url = f"http://127.0.0.1:{PORT}"
     print(f"hotmart-dl rodando em {url}  (Ctrl+C pra sair)")
     if not os.environ.get("HOTMART_NO_BROWSER"):
