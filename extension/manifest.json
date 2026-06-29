@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hotmart Course Extractor (hotmart-dl)",
-  "version": "3.1.5",
+  "version": "3.1.6",
   "description": "Painel lateral pra escolher aulas, padrao de nome e qualidade, e exportar um course.json pra baixar com o hotmart-dl.",
   "permissions": ["activeTab", "scripting", "downloads", "sidePanel", "declarativeNetRequest"],
   "host_permissions": ["https://hotmart.com/*", "https://*.hotmart.com/*"],

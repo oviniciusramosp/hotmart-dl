@@ -261,11 +261,17 @@ async function init() {
     $("#course").textContent = "Abra um curso no hotmart.com, depois clique em ↻ reler.";
     return;
   }
-  let res;
-  try {
-    res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["extractor.js"] });
-  } catch (e) { $("#course").textContent = "Falha ao ler a página: " + e.message; return; }
-  const data = res && res[0] && res[0].result;
+  // re-tenta algumas vezes: ao trocar de curso a árvore React pode estar montando
+  let data = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let res;
+    try {
+      res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["extractor.js"] });
+    } catch (e) { $("#course").textContent = "Falha ao ler a página: " + e.message; return; }
+    data = res && res[0] && res[0].result;
+    if (data && !data.error) break;                                   // sucesso
+    if (attempt < 3) { $("#course").textContent = "Lendo o curso…"; await new Promise((r) => setTimeout(r, 700)); }
+  }
   if (!data) { $("#course").textContent = "Nada retornado. Recarregue a página do curso."; return; }
   if (data.error) { $("#course").textContent = data.error; return; }
   DATA = data;

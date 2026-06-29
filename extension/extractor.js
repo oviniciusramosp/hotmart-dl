@@ -14,12 +14,22 @@
       (Array.isArray(o.pages) || Array.isArray(o.lessons) || Array.isArray(o.contents) ||
        Array.isArray(o.children) || Array.isArray(o.items));
   }
+  function lessonsOf(o) { return o && (o.pages || o.lessons || o.contents || o.children || o.items); }
+  function looksLesson(o) { return o && typeof o === "object" && ("name" in o || "title" in o); }
+  // array de >=1 modulo cujo 1o item tem uma lista de aulas que parecem aulas
+  // (aceita curso de 1 modulo; evita pegar arrays parecidos que nao sao a arvore)
+  function looksModuleArr(v) {
+    if (!Array.isArray(v) || v.length < 1 || !looksModule(v[0])) return false;
+    var L = lessonsOf(v[0]);
+    return Array.isArray(L) && (L.length === 0 || looksLesson(L[0]));
+  }
   function findTree() {
     var t0 = performance.now(), starts = [];
     var nx = document.querySelector("#__next");
     if (nx) { var f = getFiber(nx); if (f) starts.push(f); }
     var asides = document.querySelectorAll("aside,#app-space-microfront");
     for (var i = 0; i < asides.length; i++) { var g = getFiber(asides[i]); if (g) starts.push(g); }
+    if (document.body) { var fb = getFiber(document.body); if (fb) starts.push(fb); }  // raiz de reserva
     var q = starts.slice(), seen = 0, found = null, visited = new Set();
     while (q.length && seen < 150000 && performance.now() - t0 < 9000 && !found) {
       var n = q.shift();
@@ -31,11 +41,11 @@
         if (p && typeof p === "object") {
           for (var k in p) {
             var v; try { v = p[k]; } catch (e) { continue; }
-            if (Array.isArray(v) && v.length > 1 && looksModule(v[0])) { found = v; break; }
+            if (looksModuleArr(v)) { found = v; break; }
             if (v && typeof v === "object" && !Array.isArray(v)) {
               for (var k2 in v) {
                 var v2; try { v2 = v[k2]; } catch (e) { continue; }
-                if (Array.isArray(v2) && v2.length > 1 && looksModule(v2[0])) { found = v2; break; }
+                if (looksModuleArr(v2)) { found = v2; break; }
               }
               if (found) break;
             }
