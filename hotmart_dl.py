@@ -96,10 +96,31 @@ def clean_temp(out_no_ext):
 def ytdlp(m3u8, out_no_ext):
     clean_temp(out_no_ext)  # começa limpo (links assinados mudam a cada resolve; não dá pra resumir frag antigo)
     cmd = ["yt-dlp", "--no-warnings", "--no-overwrites",
+           "--abort-on-unavailable-fragments",  # NUNCA finalizar com fragmento faltando
            "--add-header", f"Referer: {EMBED_REFERER}",
            "--merge-output-format", "mp4",
            "-o", out_no_ext + ".%(ext)s", m3u8]
     return subprocess.run(cmd).returncode == 0
+
+
+def probe_dur(path):
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", path], capture_output=True, text=True, timeout=30)
+        return float(out.stdout.strip())
+    except Exception:
+        return None
+
+
+def duration_ok(path, expected):
+    """True se a duração bate com o esperado (tolerância: 5s ou 2%). None se nao da pra checar."""
+    if not expected:
+        return None
+    got = probe_dur(path)
+    if got is None:
+        return None
+    return abs(got - expected) <= max(5.0, expected * 0.02)
 
 
 def find_course_json():
@@ -122,7 +143,7 @@ def jobs_iter(modules, only):
             continue
         for l in M["lessons"]:
             if l.get("hasVideo"):
-                yield M["m"], M["name"], l["a"], l["name"], l["hash"]
+                yield M["m"], M["name"], l["a"], l["name"], l["hash"], l.get("dur") or 0
 
 
 def run(args):
@@ -144,13 +165,19 @@ def run(args):
         jobs = jobs[:1]
     print(f"Curso: {data.get('course')}  |  {len(jobs)} aula(s) com video  ->  {out}\n")
     ok = skip = fail = 0
-    for m, mname, a, lname, h in jobs:
+    suspeitos = []
+    for m, mname, a, lname, h, dur in jobs:
         tag = f"M{m:02d}A{a:02d}"
         out_dir = os.path.join(out, f"Modulo {m:02d} - {sanitize(mname)}")
         out_no_ext = os.path.join(out_dir, f"{tag} - {sanitize(lname)}")
-        if os.path.exists(out_no_ext + ".mp4") and os.path.getsize(out_no_ext + ".mp4") > 100_000:
+        final = out_no_ext + ".mp4"
+        if os.path.exists(final) and os.path.getsize(final) > 100_000:
             clean_temp(out_no_ext)  # varre orfaos ao lado de um arquivo ja pronto
-            print(f"== {tag} - {lname}\n   ja existe — pulando"); skip += 1; continue
+            if duration_ok(final, dur) is False:
+                print(f"== {tag} - {lname}\n   ⚠ ja existe mas duração não bate ({int(probe_dur(final) or 0)}s ≠ {dur}s) — apague e re-rode"); suspeitos.append(tag)
+            else:
+                print(f"== {tag} - {lname}\n   ja existe — pulando"); skip += 1
+            continue
         print(f"== {tag} - {lname}")
         try:
             m3u8, hpx = resolve(h, token, pid, app)
@@ -160,9 +187,13 @@ def run(args):
                 print(f"   m3u8 {hpx}p OK (--print-only)"); ok += 1; continue
             os.makedirs(out_dir, exist_ok=True)
             if ytdlp(m3u8, out_no_ext):
-                print(f"   baixado ({hpx}p)"); ok += 1
+                if duration_ok(final, dur) is False:
+                    print(f"   ⚠ baixado MAS duração {int(probe_dur(final) or 0)}s ≠ esperado {dur}s — verifique"); suspeitos.append(tag)
+                else:
+                    print(f"   baixado ({hpx}p)")
+                ok += 1
             else:
-                print("   ! yt-dlp falhou"); fail += 1
+                print("   ! yt-dlp falhou (fragmento indisponível?) — re-rode"); fail += 1
         except urllib.error.HTTPError as e:
             print(f"   ! HTTP {e.code} — token expirou? re-gere o course.json com a extensao.")
             if e.code in (401, 403) and not args.keep_going:
@@ -171,6 +202,8 @@ def run(args):
         except Exception as e:
             print(f"   ! erro: {e}"); fail += 1
     print(f"\nFim. ok={ok} pulados={skip} falhas={fail}\nArquivos em: {out}")
+    if suspeitos:
+        print(f"⚠ DURAÇÃO SUSPEITA (pode faltar pedaço) em: {', '.join(suspeitos)} — apague esses .mp4 e re-rode.")
 
 
 def self_test():
