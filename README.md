@@ -64,6 +64,8 @@ Duas formas — o padrão de nome escolhido na extensão vai no `course.json` e 
 python3 serve.py            # ou: python3 hotmart_dl.py --serve
 ```
 
+No macOS, sem terminal: dê **dois cliques** em `Abrir hotmart-dl.command` (no Finder).
+
 Abre `http://127.0.0.1:8765` com:
 - **fila** de todas as aulas (agrupadas por módulo);
 - **progresso ao vivo** por aula (barra + %) e barra geral;

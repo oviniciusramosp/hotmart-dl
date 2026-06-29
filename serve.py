@@ -385,7 +385,9 @@ def main(path=None):
     build_items()
     threading.Thread(target=scan_all, daemon=True).start()  # descobre desc/material p/ os selos
     url = f"http://127.0.0.1:{PORT}"
-    print(f"hotmart-dl rodando em {url}  (Ctrl+C pra sair)")
+    print("\n  hotmart-dl — a interface abre no NAVEGADOR (não é aqui no terminal).")
+    print(f"  ➜  {url}")
+    print("  (deixe este terminal aberto enquanto baixa; Ctrl+C encerra)\n")
     if not os.environ.get("HOTMART_NO_BROWSER"):
         try:
             webbrowser.open(url)
