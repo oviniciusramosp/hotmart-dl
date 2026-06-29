@@ -37,7 +37,25 @@ async function resolveM3u8(hash, D) {
 }
 
 async function downloadHlsBlob(m3u8url, onProgress) {
-  const pl = await fetch(m3u8url).then((r) => r.text());
+  let pl = await fetch(m3u8url).then((r) => r.text());
+  // se for MASTER (lista qualidades), resolve a melhor variante primeiro
+  if (pl.includes("#EXT-X-STREAM-INF")) {
+    const lines = pl.split("\n");
+    const variants = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
+        const bw = parseInt((lines[i].match(/BANDWIDTH=(\d+)/) || [])[1] || "0", 10);
+        const h = parseInt((lines[i].match(/RESOLUTION=\d+x(\d+)/) || [])[1] || "0", 10);
+        const u = (lines[i + 1] || "").trim();
+        if (u && !u.startsWith("#")) variants.push({ bw, h, url: new URL(u, m3u8url).href });
+      }
+    }
+    if (variants.length) {
+      variants.sort((a, b) => b.h - a.h || b.bw - a.bw);
+      m3u8url = variants[0].url;            // melhor qualidade
+      pl = await fetch(m3u8url).then((r) => r.text());
+    }
+  }
   // chave AES (se houver)
   let key = null, ivFixed = null;
   const km = pl.match(/#EXT-X-KEY:[^\n]*URI="([^"]+)"/);
