@@ -67,7 +67,7 @@ def lesson_embed_url(h, token, product_id, app_name):
     return None
 
 
-def embed_best_m3u8(embed_url):
+def embed_best_m3u8(embed_url, prefer="high"):
     page = http_get(embed_url, headers={"Referer": EMBED_REFERER})
     m = NEXT_DATA.search(page)
     if not m:
@@ -78,15 +78,16 @@ def embed_best_m3u8(embed_url):
     m3u8s = [a for a in assets if ".m3u8" in (a.get("url") or "")]
     if not m3u8s:
         raise RuntimeError("sem m3u8 em mediaAssets (DRM Widevine? so urlEncrypted)")
-    m3u8s.sort(key=lambda a: a.get("height") or 0, reverse=True)
-    return m3u8s[0]["url"], m3u8s[0].get("height")
+    m3u8s.sort(key=lambda a: a.get("height") or 0)  # ascendente
+    chosen = m3u8s[-1] if prefer != "low" else m3u8s[0]
+    return chosen["url"], chosen.get("height")
 
 
-def resolve(h, token, product_id, app_name):
+def resolve(h, token, product_id, app_name, prefer="high"):
     embed = lesson_embed_url(h, token, product_id, app_name)
     if not embed:
         return None, None
-    return embed_best_m3u8(embed)
+    return embed_best_m3u8(embed, prefer)
 
 
 def clean_temp(out_no_ext):
@@ -170,6 +171,7 @@ def run(args):
     naming = data.get("naming") or {}
     folder_tpl = naming.get("folder", "Modulo {mm} - {module}")
     file_tpl = naming.get("file") or "M{mm}A{aa} - {lesson}"
+    prefer = args.resolution or data.get("resolution") or "high"
 
     jobs = list(jobs_iter(data["modules"], only))
     if args.test:
@@ -191,7 +193,7 @@ def run(args):
             continue
         print(f"== {tag} - {lname}")
         try:
-            m3u8, hpx = resolve(h, token, pid, app)
+            m3u8, hpx = resolve(h, token, pid, app, prefer)
             if not m3u8:
                 print("   (sem video — pulando)"); skip += 1; continue
             if args.print_only:
@@ -242,14 +244,19 @@ def main():
     ap = argparse.ArgumentParser(description="Baixa um curso do Hotmart Club a partir de um course.json.")
     ap.add_argument("course", nargs="?", help="course.json (default: mais recente em ~/Downloads)")
     ap.add_argument("--out", help="pasta de saida (default: ~/Downloads/<nome do curso>)")
+    ap.add_argument("--resolution", choices=["high", "low"], help="qualidade (default: high)")
     ap.add_argument("--modules", type=int, nargs="+", help="so estes modulos (ex: 17 18 19)")
     ap.add_argument("--test", action="store_true", help="baixa so a 1a aula")
     ap.add_argument("--print-only", action="store_true", help="resolve o m3u8 mas nao baixa")
     ap.add_argument("--keep-going", action="store_true", help="nao parar em 401/403")
+    ap.add_argument("--serve", action="store_true", help="abre o app local (dashboard de fila + progresso)")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
         return self_test()
+    if args.serve:
+        import serve
+        return serve.main(args.course)
     run(args)
 
 

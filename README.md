@@ -52,15 +52,29 @@ Padrões de nome disponíveis (ou crie o seu com `{mm} {aa} {module} {lesson}`):
 
 ## 3) Baixar
 
+Duas formas — o padrão de nome escolhido na extensão vai no `course.json` e é aplicado nas duas.
+
+### a) App local com dashboard (recomendado)
+
 ```bash
-python3 hotmart_dl.py                       # usa o course.json mais recente de ~/Downloads
-python3 hotmart_dl.py meucurso.course.json  # ou aponte o arquivo
-python3 hotmart_dl.py --modules 17 18 19    # filtro extra de módulos (opcional)
-python3 hotmart_dl.py --out "~/Downloads/Meu Curso"
-python3 hotmart_dl.py --test                # baixa só a 1ª aula, pra validar
+python3 serve.py            # ou: python3 hotmart_dl.py --serve
 ```
 
-O padrão de nome escolhido na UI vai dentro do `course.json` e é aplicado aqui automaticamente.
+Abre `http://127.0.0.1:8765` com:
+- **fila** de todas as aulas (agrupadas por módulo);
+- **progresso ao vivo** por aula (barra + %) e barra geral;
+- campo de **pasta de saída** e seletor de **resolução** (mais alta / mais baixa);
+- botões **Baixar / Parar**. Re-rodar continua de onde parou.
+
+### b) Terminal
+
+```bash
+python3 hotmart_dl.py                          # course.json mais recente de ~/Downloads
+python3 hotmart_dl.py meucurso.course.json
+python3 hotmart_dl.py --out "~/Downloads/Meu Curso" --resolution low
+python3 hotmart_dl.py --modules 17 18 19       # filtro extra de módulos
+python3 hotmart_dl.py --test                   # só a 1ª aula, pra validar
+```
 
 Re‑rodar **continua de onde parou** (pula MP4 já completos). Se aparecer **HTTP 401/403**, a sessão expirou: clique na extensão de novo pra gerar um `course.json` novo e re‑rode.
 
