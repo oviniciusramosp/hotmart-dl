@@ -11,6 +11,57 @@ const PRESETS = [
 let DATA = null;
 let dlRunning = false, dlStop = false;
 
+const IC = {
+  video: '<span class="ic v" title="vídeo"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M10 10l4 2-4 2z" fill="currentColor" stroke="none"/></svg></span>',
+  desc: '<span class="ic d" title="descrição"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l3 3v15H6z"/><path d="M9 11h6M9 15h6"/></svg></span>',
+  material: '<span class="ic m" title="materiais"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 7v8a3 3 0 0 0 6 0V6a4 4 0 0 0-8 0v9a5 5 0 0 0 10 0V7"/></svg></span>',
+  lock: '<span class="ic l" title="bloqueada"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>',
+};
+function ringSvg(pct) { const r = 6, c = (2 * Math.PI * r).toFixed(1), off = (c * (1 - pct / 100)).toFixed(1); return `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="${r}" fill="none" stroke="#2a2e37" stroke-width="2"/><circle cx="8" cy="8" r="${r}" fill="none" stroke="#4f8cff" stroke-width="2" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 8 8)"/></svg>`; }
+const SPIN = '<svg class="spin" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#2a2e37" stroke-width="2"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="#4f8cff" stroke-width="2" stroke-linecap="round"/></svg>';
+const CHECK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6ee7a8" stroke-width="2"><path d="M3 8.5l3.5 3.5L13 5"/></svg>';
+const XMARK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#ff8a8a" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+
+const dlState = {};     // "m:a" -> terminou (bool), pra contar o progresso do módulo
+const modTotal = {};    // m -> nº de aulas selecionadas no módulo
+
+const lessonRow = (m, a) => document.querySelector(`.les[data-m="${m}"][data-a="${a}"]`);
+function updateLessonRow(m, a, status, pct) {
+  const row = lessonRow(m, a); if (!row) return;
+  const pr = row.querySelector(".prog");
+  if (status === "baixando" && pct != null) pr.innerHTML = ringSvg(Math.round(pct * 100));
+  else if (status === "resolvendo" || status === "descricao" || status === "materiais") pr.innerHTML = SPIN;
+  else if (status === "ok") pr.innerHTML = CHECK;
+  else if (status === "erro") pr.innerHTML = XMARK;
+  else pr.innerHTML = "";
+  if (status === "ok" || status === "erro" || status === "bloqueada") { dlState[m + ":" + a] = true; updateModuleRing(m); }
+}
+function updateModuleRing(m) {
+  const mod = document.querySelector(`.mod[data-m="${m}"]`); if (!mod) return;
+  const el = mod.querySelector(".modprog"); if (!el) return;
+  const tot = modTotal[m] || 0, done = Object.keys(dlState).filter((k) => k.startsWith(m + ":")).length;
+  el.innerHTML = tot ? ringSvg(Math.round(100 * done / tot)) : "";
+}
+
+async function panelScan() {
+  const ls = [];
+  DATA.modules.forEach((M) => M.lessons.forEach((l) => { if (!l.locked) ls.push({ m: M.m, a: l.a, hash: l.hash }); }));
+  let i = 0;
+  const worker = async () => {
+    while (i < ls.length && DATA) {
+      const l = ls[i++];
+      try {
+        const { hasDesc, att } = await scanLesson(l.hash, DATA);
+        const row = lessonRow(l.m, l.a); if (!row) continue;
+        const ic = row.querySelector(".icons");
+        if (hasDesc) ic.insertAdjacentHTML("beforeend", IC.desc);
+        if (att > 0) ic.insertAdjacentHTML("beforeend", IC.material + (att > 1 ? `<span class="cnt">${att}</span>` : ""));
+      } catch (e) {}
+    }
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+}
+
 const pad2 = (n) => String(n).padStart(2, "0");
 const clean = (s) => String(s || "").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim().slice(0, 120) || "x";
 function render(tpl, m, a, module, lesson) {
@@ -54,11 +105,12 @@ function buildTree() {
     const vids = M.lessons.filter((l) => l.hasVideo).length;
     const mod = document.createElement("div");
     mod.className = "mod";
+    mod.dataset.m = M.m;
     const head = document.createElement("div");
     head.className = "mod-head";
     head.innerHTML = `<span class="twi">▶</span>
       <input type="checkbox" class="modchk" title="Marcar módulo">
-      <span class="mod-name"></span><span class="mod-meta">${vids} vídeo(s)</span>`;
+      <span class="mod-name"></span><span class="modprog"></span><span class="mod-meta">${vids} vídeo(s)</span>`;
     head.querySelector(".mod-name").textContent = `M${pad2(M.m)} · ${M.name}`;
     mod.appendChild(head);
     const wrap = document.createElement("div");
@@ -66,25 +118,22 @@ function buildTree() {
     M.lessons.forEach((l) => {
       const les = document.createElement("label");
       les.className = "les" + (l.hasVideo ? "" : " novid") + (l.locked ? " locked" : "");
+      les.dataset.m = M.m; les.dataset.a = l.a;
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.dataset.m = M.m; cb.dataset.a = l.a; cb.dataset.mod = M.name; cb.dataset.les = l.name;
-      if (l.locked) cb.disabled = true;          // bloqueada: nao da pra baixar
-      else cb.checked = true;                    // tudo o resto (incl. sem video) marcado por padrao
+      if (l.locked) cb.disabled = true; else cb.checked = true;  // sem vídeo fica marcado (desc/material)
       les.appendChild(cb);
       const nm = document.createElement("span");
       nm.className = "nm"; nm.textContent = `M${pad2(M.m)}A${pad2(l.a)} · ${l.name}`;
       les.appendChild(nm);
-      if (l.locked) {
-        const b = document.createElement("span"); b.className = "badge"; b.textContent = "bloqueada";
-        les.appendChild(b);
-      } else if (l.hasVideo) {
-        const d = document.createElement("span"); d.className = "dur"; d.textContent = fmtDur(l.dur);
-        les.appendChild(d);
-      } else {
-        const b = document.createElement("span"); b.className = "badge"; b.textContent = "sem vídeo";
-        les.appendChild(b);
-      }
+      const icons = document.createElement("span"); icons.className = "icons";
+      icons.innerHTML = l.locked ? IC.lock : (l.hasVideo ? IC.video : "");  // desc/material vêm do scan
+      les.appendChild(icons);
+      const prog = document.createElement("span"); prog.className = "prog"; les.appendChild(prog);
+      const dur = document.createElement("span"); dur.className = "dur";
+      dur.textContent = (!l.locked && l.hasVideo) ? fmtDur(l.dur) : "";
+      les.appendChild(dur);
       cb.addEventListener("change", () => { syncModChk(mod, M); updatePreview(); });
       wrap.appendChild(les);
     });
@@ -160,15 +209,19 @@ async function onDownloadHere() {
   dlStop = false; dlRunning = true;
   const btn = $("#dlhere"); btn.textContent = "■ Parar"; btn.classList.add("stop");
   $("#dlbar").style.display = "block"; $("#cmd").style.display = "none";
+  for (const k in dlState) delete dlState[k];          // zera progresso anterior
+  for (const k in modTotal) delete modTotal[k];
+  jobs.forEach((j) => { modTotal[j.m] = (modTotal[j.m] || 0) + 1; });
   await setReferer(true);   // regra de Referer ativa só durante o download
   const n = currentNaming();
   const opts = { folderTpl: n.folder, fileTpl: n.file, doDesc: $("#optDesc").checked,
                  doAttach: $("#optAtt").checked, prefer: $("#res").value };
   downloadCourse(jobs, DATA, opts, {
     stopped: () => dlStop,
-    onUpdate: ({ done, total, current, status }) => {
+    onLesson: (m, a, status, pct) => updateLessonRow(m, a, status, pct),
+    onOverall: (done, total) => {
       $("#dlbar").firstElementChild.style.width = (total ? Math.round(100 * done / total) : 0) + "%";
-      setStatus(`${done}/${total}  ${current}${status ? " — " + status : ""}`);
+      setStatus(`${done}/${total} aulas concluídas`);
     },
     onDone: async (sum) => {
       await setReferer(false);   // desliga ao terminar
@@ -214,6 +267,7 @@ async function init() {
   $("#course").textContent = `${DATA.course} — ${DATA.modules.length} módulos, ${nv} vídeos`;
   $("#controls").style.display = "flex";
   buildTree();
+  panelScan();   // em segundo plano: preenche os ícones de descrição/material
   $("#all").addEventListener("click", () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#none").addEventListener("click", () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#go").addEventListener("click", exportJSON);

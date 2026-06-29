@@ -106,62 +106,59 @@ async function downloadOne(job, D, opts, onProg) {
   const tag = "M" + pad2(job.m) + "A" + pad2(job.a);
   const dir = opts.folderTpl && opts.folderTpl.trim() ? render(opts.folderTpl, job.m, job.a, job.mname, job.name) + "/" : "";
   const base = dir + render(opts.fileTpl, job.m, job.a, job.mname, job.name);
-  if (job.locked) { onProg(tag, "bloqueada"); return { locked: 1 }; }
+  if (job.locked) { onProg("bloqueada", null); return { locked: 1 }; }
   const out = { video: 0, desc: 0, att: 0, fail: 0 };
   let lj = null;
-  if (job.hasVideo || opts.doDesc) { try { lj = await fetchLessonJson(job.hash, D); } catch (e) { onProg(tag, "erro: " + e.message); return { fail: 1 }; } }
+  if (job.hasVideo || opts.doDesc) { try { lj = await fetchLessonJson(job.hash, D); } catch (e) { onProg("erro", null); return { fail: 1 }; } }
   if (job.hasVideo) {
     try {
-      onProg(tag, "resolvendo…");
+      onProg("resolvendo", null);
       const embed = mediaEmbed(lj);
       if (embed) {
         const m3u8 = await embedToM3u8(embed, opts.prefer);
-        const blob = await downloadHlsBlob(m3u8, (p) => onProg(tag, "baixando vídeo " + Math.round(p * 100) + "%"));
+        const blob = await downloadHlsBlob(m3u8, (p) => onProg("baixando", p));
         await saveBlob(blob, base + ".ts");
         out.video = 1;
       }
-    } catch (e) { onProg(tag, "vídeo erro: " + e.message); out.fail = 1; }
+    } catch (e) { onProg("erro", null); out.fail = 1; }
   }
   if (opts.doDesc && lj) {
     const content = (lj.content || "").trim();
-    if (content) { try { onProg(tag, "descrição…"); await saveDescription(content, job.name, base + ".html"); out.desc = 1; } catch (e) {} }
+    if (content) { try { onProg("descricao", null); await saveDescription(content, job.name, base + ".html"); out.desc = 1; } catch (e) {} }
   }
   if (opts.doAttach) {
-    onProg(tag, "materiais…");
+    onProg("materiais", null);
     for (const a of await fetchAttachments(job.hash, D)) {
       try { const u = await attachmentUrl(a.fileMembershipId, D); await downloadWithName(u, dir + tag + " - " + safeFile(a.fileName)); out.att++; } catch (e) {}
     }
   }
-  onProg(tag, "ok");
+  onProg("ok", 1);
   return out;
 }
 
 async function downloadCourse(jobs, D, opts, cb) {
-  const total = jobs.length;
-  let done = 0;
+  const total = jobs.length; let done = 0;
   const sum = { video: 0, desc: 0, att: 0, locked: 0, fail: 0 };
   for (const job of jobs) {
     if (cb.stopped && cb.stopped()) break;
-    cb.onUpdate({ done, total, current: "M" + pad2(job.m) + "A" + pad2(job.a) + " · " + job.name, status: "" });
-    try {
-      const r = await downloadOne(job, D, opts, (tag, status) => cb.onUpdate({ done, total, current: tag + " · " + job.name, status }));
-      for (const k in r) sum[k] = (sum[k] || 0) + (r[k] || 0);
-    } catch (e) { sum.fail++; }
+    let r;
+    try { r = await downloadOne(job, D, opts, (status, pct) => cb.onLesson(job.m, job.a, status, pct)); }
+    catch (e) { r = { fail: 1 }; cb.onLesson(job.m, job.a, "erro", null); }
+    for (const k in r) sum[k] = (sum[k] || 0) + (r[k] || 0);
     done++;
-    cb.onUpdate({ done, total, current: "", status: "" });
+    cb.onOverall(done, total);
   }
   cb.onDone(sum);
 }
 
-// MARCO 1: testa baixar a 1ª aula com vídeo (mantido).
-async function testDownloadOne(DATA, onStatus) {
-  const l = DATA.modules.flatMap((M) => M.lessons.map((x) => ({ ...x, m: M.m, mname: M.name }))).find((x) => x.hasVideo && !x.locked);
-  if (!l) { onStatus("Nenhuma aula com vídeo.", true); return; }
-  await downloadOne({ ...l }, DATA, { folderTpl: "hotmart-dl-teste", fileTpl: "M{mm}A{aa} - {lesson}", doDesc: false, doAttach: false, prefer: "high" },
-    (tag, s) => onStatus(tag + ": " + s)).then(() => onStatus("✓ teste concluído (veja Downloads/hotmart-dl-teste).")).catch((e) => onStatus("erro: " + e.message, true));
+// scan leve: descobre se a aula tem descrição e quantos materiais (pros ícones)
+async function scanLesson(hash, D) {
+  let hasDesc = false, att = 0;
+  try { const lj = await fetchLessonJson(hash, D); hasDesc = !!((lj.content || "").trim()); } catch (e) {}
+  try { att = (await fetchAttachments(hash, D)).length; } catch (e) {}
+  return { hasDesc, att };
 }
 
-// expõe só a API pública pro popup.js
 window.downloadCourse = downloadCourse;
-window.testDownloadOne = testDownloadOne;
+window.scanLesson = scanLesson;
 })();
