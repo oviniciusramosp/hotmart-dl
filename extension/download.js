@@ -1,6 +1,8 @@
 // Download in-browser (roda no painel; host_permissions + regra de Referer = sem CORS).
 // Faz vídeo (.ts, decifra AES-128), descrição (.html com imagens) e materiais (anexos),
 // com nomeação igual ao CLI. Formato .ts por ora; mp4 via mux.js é o próximo passo.
+// IIFE: isola os helpers (pad2, render, ...) pra não colidir com o popup.js no escopo global.
+(function () {
 const GW = "https://api-club-course-consumption-gateway-ga.cb.hotmart.com";
 const ATT = "https://api-club.cb.hotmart.com/rest/v3/attachment/{fmid}/download";
 
@@ -158,3 +160,8 @@ async function testDownloadOne(DATA, onStatus) {
   await downloadOne({ ...l }, DATA, { folderTpl: "hotmart-dl-teste", fileTpl: "M{mm}A{aa} - {lesson}", doDesc: false, doAttach: false, prefer: "high" },
     (tag, s) => onStatus(tag + ": " + s)).then(() => onStatus("✓ teste concluído (veja Downloads/hotmart-dl-teste).")).catch((e) => onStatus("erro: " + e.message, true));
 }
+
+// expõe só a API pública pro popup.js
+window.downloadCourse = downloadCourse;
+window.testDownloadOne = testDownloadOne;
+})();
