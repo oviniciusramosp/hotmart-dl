@@ -1,8 +1,7 @@
 // Download in-browser (roda no painel; host_permissions + regra de Referer = sem CORS).
 // Faz vídeo (.ts, decifra AES-128), descrição (.html com imagens) e materiais (anexos),
 // com nomeação igual ao CLI. Formato .ts por ora; mp4 via mux.js é o próximo passo.
-// IIFE: isola os helpers (pad2, render, ...) pra não colidir com o popup.js no escopo global.
-(function () {
+// Módulo ES: escopo próprio (não polui o global), exporta a API no final.
 const GW = "https://api-club-course-consumption-gateway-ga.cb.hotmart.com";
 const ATT = "https://api-club.cb.hotmart.com/rest/v3/attachment/{fmid}/download";
 
@@ -159,6 +158,4 @@ async function scanLesson(hash, D) {
   return { hasDesc, att };
 }
 
-window.downloadCourse = downloadCourse;
-window.scanLesson = scanLesson;
-})();
+export { downloadCourse, scanLesson };

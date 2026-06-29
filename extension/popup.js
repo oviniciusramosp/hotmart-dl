@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
-// IIFE: isola TODOS os globais (pad2, render, ...) pra nunca colidir com download.js.
-(function () {
+// Módulo ES: escopo próprio. Importa a API de download do download.js.
+import { downloadCourse, scanLesson } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -277,4 +277,3 @@ async function init() {
   updatePreview();
 }
 init();
-})();
