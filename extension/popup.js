@@ -141,9 +141,11 @@ function exportJSON() {
 function setStatus(msg, err) { const s = $("#status"); s.textContent = msg; s.className = err ? "err" : ""; }
 
 async function init() {
+  const rb = $("#refresh");
+  if (rb) rb.addEventListener("click", () => location.reload());  // re-lê o curso da aba atual
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url || "")) {
-    $("#course").textContent = "Abra um curso no hotmart.com e reabra a extensão.";
+    $("#course").textContent = "Abra um curso no hotmart.com, depois clique em ↻ reler.";
     return;
   }
   let res;
