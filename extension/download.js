@@ -93,21 +93,6 @@ async function downloadHlsParts(m3u8url, onProgress) {
   return parts;
 }
 
-// Reembrulha os TS decifrados em MP4 (mux.js, sem re-encode → qualidade idêntica, toca em tudo).
-// Lança se o muxjs não carregou ou a saída vier vazia — aí o chamador cai pro .ts.
-function tsToMp4(parts) {
-  const mux = globalThis.muxjs;
-  if (!(mux && mux.mp4 && mux.mp4.Transmuxer)) throw new Error("muxjs ausente");
-  const tx = new mux.mp4.Transmuxer({ remux: true });
-  let init = null, finished = false; const chunks = [];
-  tx.on("data", (seg) => { if (!init) init = seg.initSegment; chunks.push(seg.data); });
-  tx.on("done", () => { finished = true; });
-  for (let i = 0; i < parts.length; i++) tx.push(parts[i]);  // push em ordem; eventos são síncronos
-  tx.flush();
-  if (!finished || !init || !chunks.length) throw new Error("transmux vazio");
-  return new Blob([init, ...chunks], { type: "video/mp4" });
-}
-
 function blobToDataUri(blob) { return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); }); }
 async function saveDescription(contentHtml, title, relPath) {
   const imgs = [...contentHtml.matchAll(/src\s*=\s*"([^"]+)"/gi)].map((m) => m[1]).filter((u) => !u.startsWith("data:"));
@@ -141,10 +126,7 @@ async function downloadOne(job, D, opts, onProg) {
       if (embed) {
         const m3u8 = await embedToM3u8(embed, opts.prefer);
         const parts = await downloadHlsParts(m3u8, (p) => onProg("baixando", p));
-        let blob, ext;
-        try { blob = tsToMp4(parts); ext = ".mp4"; }            // sem re-encode, toca em tudo
-        catch (e) { blob = new Blob(parts, { type: "video/mp2t" }); ext = ".ts"; }  // fallback seguro
-        await saveBlob(blob, base + ext);
+        await saveBlob(new Blob(parts, { type: "video/mp2t" }), base + ".ts");
         out.video = 1;
       }
     } catch (e) { onProg("erro", null); out.fail = 1; }
