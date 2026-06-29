@@ -178,6 +178,7 @@ async function init() {
   $("#all").addEventListener("click", () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#none").addEventListener("click", () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
   $("#go").addEventListener("click", exportJSON);
+  $("#testdl").addEventListener("click", () => testDownloadOne(DATA, setStatus));
   updatePreview();
 }
 init();
