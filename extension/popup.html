@@ -21,9 +21,10 @@
            padding: 4px 8px; cursor: pointer; font: inherit; }
     .bulk button:hover { background: #2c313f; }
     .count { margin-left: auto; color: #9aa3b2; }
-    .opts { display: flex; gap: 14px; margin: 2px 0; }
+    .opts { display: flex; gap: 14px; margin: 2px 0; flex-wrap: wrap; align-items: center; }
     .opt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd2e0; cursor: pointer; }
-    .opt input { width: 15px; height: 15px; accent-color: #4f8cff; }
+    .opt input[type=checkbox] { width: 15px; height: 15px; accent-color: #4f8cff; }
+    .opt select { background: #0f1116; color: #e7e9ee; border: 1px solid #2a2e37; border-radius: 6px; padding: 3px 6px; font: inherit; }
     .les.locked .nm { color: #6b7280; }
     #tree { overflow-y: auto; flex: 1; padding: 4px 8px; }
     .mod { margin: 4px 0; border: 1px solid #232734; border-radius: 8px; overflow: hidden; }
@@ -68,8 +69,11 @@
     </label>
     <div class="preview" id="preview"></div>
     <div class="opts">
-      <label class="opt"><input type="checkbox" id="optDesc" checked> Descrições (.html)</label>
-      <label class="opt"><input type="checkbox" id="optAtt" checked> Materiais (anexos)</label>
+      <label class="opt"><input type="checkbox" id="optDesc" checked> Descrições</label>
+      <label class="opt"><input type="checkbox" id="optAtt" checked> Materiais</label>
+      <label class="opt" style="margin-left:auto">Qualidade
+        <select id="res"><option value="high">Mais alta</option><option value="low">Mais baixa</option></select>
+      </label>
     </div>
     <div class="bulk">
       <button id="all">Marcar todos</button>

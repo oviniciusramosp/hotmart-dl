@@ -120,6 +120,7 @@ function exportJSON() {
   const course = {
     course: DATA.course, subdomain: DATA.subdomain, productId: DATA.productId,
     appName: DATA.appName, token: DATA.token, naming,
+    resolution: $("#res").value,
     options: { descriptions: $("#optDesc").checked, attachments: $("#optAtt").checked },
     modules,
   };
@@ -128,10 +129,10 @@ function exportJSON() {
   const fname = (DATA.subdomain || "curso") + ".course.json";
   chrome.downloads.download({ url, filename: fname, saveAs: false }, () => {
     const n = course.modules.reduce((s, M) => s + M.lessons.length, 0);
-    setStatus(`✓ ${fname} salvo (${n} aulas).`);
-    const cmd = "cd ~/Documents/Apps/ChromePlugins/hotmart-dl && python3 hotmart_dl.py";
+    setStatus(`✓ ${fname} salvo (${n} aulas). Agora abra o app pra baixar:`);
+    const cmd = "cd ~/Documents/Apps/ChromePlugins/hotmart-dl && python3 serve.py";
     $("#cmd").style.display = "block";
-    $("#cmd").innerHTML = '<span class="copy" id="cp">copiar</span>No terminal:<br>' + cmd;
+    $("#cmd").innerHTML = '<span class="copy" id="cp">copiar</span>App (fila + progresso + selos + qualidade):<br>' + cmd;
     $("#cp").addEventListener("click", () => navigator.clipboard.writeText(cmd));
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   });
