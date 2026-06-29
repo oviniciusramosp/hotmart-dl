@@ -86,10 +86,13 @@ async function downloadHlsBlob(m3u8url, onProgress) {
 function saveBlob(blob, relPath) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
-    chrome.downloads.download({ url, filename: relPath, saveAs: false, conflictAction: "overwrite" }, (id) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else resolve(id);
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    // registra o nome no service worker ANTES de iniciar (blob: ignora o filename direto)
+    chrome.runtime.sendMessage({ type: "hmFilename", url, filename: relPath }, () => {
+      chrome.downloads.download({ url, saveAs: false }, (id) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(id);
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+      });
     });
   });
 }
