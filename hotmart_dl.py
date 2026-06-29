@@ -81,7 +81,20 @@ def resolve(h, token, product_id, app_name):
     return embed_best_m3u8(embed)
 
 
+def clean_temp(out_no_ext):
+    # remove temporarios orfaos do yt-dlp (sobram quando um download e interrompido):
+    # <nome>.mp4-FragN, .mp4.part, .mp4.ytdl
+    base = glob.escape(out_no_ext)
+    for pat in (".mp4-Frag*", ".mp4.part", ".mp4.ytdl"):
+        for p in glob.glob(base + pat):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+
 def ytdlp(m3u8, out_no_ext):
+    clean_temp(out_no_ext)  # começa limpo (links assinados mudam a cada resolve; não dá pra resumir frag antigo)
     cmd = ["yt-dlp", "--no-warnings", "--no-overwrites",
            "--add-header", f"Referer: {EMBED_REFERER}",
            "--merge-output-format", "mp4",
@@ -136,6 +149,7 @@ def run(args):
         out_dir = os.path.join(out, f"Modulo {m:02d} - {sanitize(mname)}")
         out_no_ext = os.path.join(out_dir, f"{tag} - {sanitize(lname)}")
         if os.path.exists(out_no_ext + ".mp4") and os.path.getsize(out_no_ext + ".mp4") > 100_000:
+            clean_temp(out_no_ext)  # varre orfaos ao lado de um arquivo ja pronto
             print(f"== {tag} - {lname}\n   ja existe — pulando"); skip += 1; continue
         print(f"== {tag} - {lname}")
         try:
