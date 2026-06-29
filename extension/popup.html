@@ -21,6 +21,10 @@
            padding: 4px 8px; cursor: pointer; font: inherit; }
     .bulk button:hover { background: #2c313f; }
     .count { margin-left: auto; color: #9aa3b2; }
+    .opts { display: flex; gap: 14px; margin: 2px 0; }
+    .opt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #cbd2e0; cursor: pointer; }
+    .opt input { width: 15px; height: 15px; accent-color: #4f8cff; }
+    .les.locked .nm { color: #6b7280; }
     #tree { overflow-y: auto; flex: 1; padding: 4px 8px; }
     .mod { margin: 4px 0; border: 1px solid #232734; border-radius: 8px; overflow: hidden; }
     .mod-head { display: flex; align-items: center; gap: 8px; padding: 7px 9px; background: #1b1e26; cursor: pointer; }
@@ -63,6 +67,10 @@
       <input id="fileTpl" type="text" placeholder="M{mm}A{aa} - {lesson}">
     </label>
     <div class="preview" id="preview"></div>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" id="optDesc" checked> Descrições (.html)</label>
+      <label class="opt"><input type="checkbox" id="optAtt" checked> Materiais (anexos)</label>
+    </div>
     <div class="bulk">
       <button id="all">Marcar todos</button>
       <button id="none">Nenhum</button>

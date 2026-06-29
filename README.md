@@ -1,15 +1,19 @@
 # hotmart-dl
 
-Baixe cursos que **você comprou** no **Hotmart Club** para assistir offline — organizados em pastas por módulo, com nomes limpos e numeração que respeita aulas sem vídeo.
+Baixe cursos que **você comprou** no **Hotmart Club** para assistir offline — vídeo, **descrição da aula** (texto + imagens) e **materiais** (PDFs, planilhas...), organizados em pastas por módulo, com nomes limpos e numeração que respeita aulas sem vídeo.
 
 ```
 Meu Curso/
 ├── Modulo 01 - Introdução/
 │   ├── M01A01 - Boas-vindas.mp4
-│   └── M01A03 - Primeiros passos.mp4      ← A02 é texto (sem vídeo): número reservado
+│   ├── M01A01 - Boas-vindas.html          ← descrição da aula (imagens embutidas)
+│   ├── M01A02 - Apostila.pdf              ← A02 é texto: sem vídeo, mas tem material
+│   └── M01A03 - Primeiros passos.mp4      ← número da A02 fica reservado
 └── Modulo 02 - Fundamentos/
     └── M02A01 - ...
 ```
+
+Aulas **bloqueadas** são puladas sem travar o download.
 
 Funciona em **qualquer curso** do Hotmart Club. Duas peças:
 
@@ -63,7 +67,7 @@ python3 serve.py            # ou: python3 hotmart_dl.py --serve
 Abre `http://127.0.0.1:8765` com:
 - **fila** de todas as aulas (agrupadas por módulo);
 - **progresso ao vivo** por aula (barra + %) e barra geral;
-- campo de **pasta de saída** e seletor de **resolução** (mais alta / mais baixa);
+- campo de **pasta de saída**, seletor de **resolução** e toggles **Descrições / Materiais**;
 - botões **Baixar / Parar**. Re-rodar continua de onde parou.
 
 ### b) Terminal
@@ -91,6 +95,10 @@ GET /v2/web/lessons/<hash>            (Authorization: Bearer <token>, x-product-
     → medias[].url  = embed assinada  (cf-embed.play.hotmart.com/embed/<code>?jwtToken=…)
 GET <embed>  → HTML → __NEXT_DATA__ → applicationData.mediaAssets[]  (m3u8 por qualidade)
 yt-dlp <m3u8 melhor qualidade>        → baixa + decifra AES-128 → mp4
+
+# descrição: o mesmo /v2/web/lessons/<hash> traz "content" (HTML) → salvo como .html
+# materiais:  /v1/pages/<hash>/complementary-content → attachments[]{fileMembershipId,fileName}
+#             api-club.cb.hotmart.com/rest/v3/attachment/<fmid>/download → {directDownloadUrl}
 ```
 
 `x-app-name` muda quando o Hotmart atualiza o app do Club; a extensão captura o valor atual automaticamente, então nada fica hardcoded.
@@ -105,9 +113,10 @@ yt-dlp <m3u8 melhor qualidade>        → baixa + decifra AES-128 → mp4
   "appName": "app-club-consumer_vX.Y.Z_production",
   "token": "<bearer jwt da sua sessão>",
   "naming": { "folder": "Modulo {mm} - {module}", "file": "M{mm}A{aa} - {lesson}" },
+  "options": { "descriptions": true, "attachments": true },
   "modules": [
     { "m": 1, "name": "Módulo 1", "lessons": [
-      { "a": 1, "name": "Aula 1", "hash": "abc123", "hasVideo": true, "dur": 155 }
+      { "a": 1, "name": "Aula 1", "hash": "abc123", "hasVideo": true, "locked": false, "dur": 155 }
     ]}
   ]
 }

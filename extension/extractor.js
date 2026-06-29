@@ -73,6 +73,7 @@
           name: String(l.name || l.title || ("Aula " + (j + 1))),
           hash: String(l.hash || l.pageHash || ""),
           hasVideo: !!(l.hasPlayerMedia || l.firstMediaType === "VIDEO"),
+          locked: !!(l.locked || M.locked),
           dur: l.mediaDurationInSeconds || 0
         };
       })

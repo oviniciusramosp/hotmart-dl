@@ -42,7 +42,7 @@ function updatePreview() {
   $("#preview").textContent = "ex: " + folder + render(n.file, m, a, mod, les) + ".mp4";
   const sel = document.querySelectorAll(".les input:checked").length;
   const tot = document.querySelectorAll(".les input:not([disabled])").length;
-  $("#count").textContent = sel + " / " + tot + " vídeos";
+  $("#count").textContent = sel + " / " + tot + " aulas";
   $("#go").disabled = sel === 0;
 }
 
@@ -64,16 +64,20 @@ function buildTree() {
     wrap.className = "lessons";
     M.lessons.forEach((l) => {
       const les = document.createElement("label");
-      les.className = "les" + (l.hasVideo ? "" : " novid");
+      les.className = "les" + (l.hasVideo ? "" : " novid") + (l.locked ? " locked" : "");
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.dataset.m = M.m; cb.dataset.a = l.a; cb.dataset.mod = M.name; cb.dataset.les = l.name;
-      if (l.hasVideo) cb.checked = true; else cb.disabled = true;
+      if (l.locked) cb.disabled = true;          // bloqueada: nao da pra baixar
+      else if (l.hasVideo) cb.checked = true;     // sem video fica selecionavel (descricao/material)
       les.appendChild(cb);
       const nm = document.createElement("span");
       nm.className = "nm"; nm.textContent = `M${pad2(M.m)}A${pad2(l.a)} · ${l.name}`;
       les.appendChild(nm);
-      if (l.hasVideo) {
+      if (l.locked) {
+        const b = document.createElement("span"); b.className = "badge"; b.textContent = "bloqueada";
+        les.appendChild(b);
+      } else if (l.hasVideo) {
         const d = document.createElement("span"); d.className = "dur"; d.textContent = fmtDur(l.dur);
         les.appendChild(d);
       } else {
@@ -109,12 +113,15 @@ function exportJSON() {
   const sel = new Set(selectedLessons().map((x) => x.m + ":" + x.a));
   const modules = DATA.modules.map((M) => ({
     m: M.m, name: M.name,
-    lessons: M.lessons.filter((l) => l.hasVideo && sel.has(M.m + ":" + l.a))
-                       .map((l) => ({ a: l.a, name: l.name, hash: l.hash, hasVideo: true, dur: l.dur })),
+    lessons: M.lessons.filter((l) => sel.has(M.m + ":" + l.a))
+                       .map((l) => ({ a: l.a, name: l.name, hash: l.hash,
+                                      hasVideo: !!l.hasVideo, locked: !!l.locked, dur: l.dur })),
   })).filter((M) => M.lessons.length);
   const course = {
     course: DATA.course, subdomain: DATA.subdomain, productId: DATA.productId,
-    appName: DATA.appName, token: DATA.token, naming, modules,
+    appName: DATA.appName, token: DATA.token, naming,
+    options: { descriptions: $("#optDesc").checked, attachments: $("#optAtt").checked },
+    modules,
   };
   const blob = new Blob([JSON.stringify(course, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
