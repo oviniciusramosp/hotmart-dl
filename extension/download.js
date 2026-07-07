@@ -78,6 +78,11 @@ async function downloadHlsParts(m3u8url, onProgress, prefer) {
   }
   const seq0 = parseInt((pl.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/) || [])[1] || "0", 10);
   const segs = pl.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).map((l) => new URL(l, m3u8url).href);
+  return fetchSegments(segs, key, ivFixed, seq0, onProgress);
+}
+
+// pool de 5 fetches simultâneos (satura a rede sem multiplicar memória); ordem preservada
+async function fetchSegments(segs, key, ivFixed, seq0, onProgress) {
   const parts = new Array(segs.length);
   let done = 0, next = 0;
   const POOL = Math.min(5, segs.length || 1);  // ponytail: 5 fixo; subir se a rede aguentar e não tomar 429
@@ -93,6 +98,19 @@ async function downloadHlsParts(m3u8url, onProgress, prefer) {
   await Promise.all(Array.from({ length: POOL }, worker));
   return parts;
 }
+
+// Baixa a partir de segmentos JÁ resolvidos (o adaptador defiverso resolve o m3u8
+// dentro da página, com os cookies de login; aqui só buscamos os .ts assinados).
+async function downloadResolved(resolved, onProgress) {
+  let key = null, ivFixed = null;
+  if (resolved.keyUrl) {
+    const kb = await fetch(resolved.keyUrl).then((r) => r.arrayBuffer());
+    key = await crypto.subtle.importKey("raw", kb, { name: "AES-CBC" }, false, ["decrypt"]);
+    if (resolved.ivHex) ivFixed = hexToBytes(resolved.ivHex);
+  }
+  return fetchSegments(resolved.segs || [], key, ivFixed, resolved.seq0 || 0, onProgress);
+}
+async function saveTs(parts, name) { await saveBlob(new Blob(parts, { type: "video/mp2t" }), safeFile(name) + ".ts"); }
 
 function blobToDataUri(blob) { return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); }); }
 async function saveDescription(contentHtml, title, relPath) {
@@ -186,4 +204,4 @@ async function downloadGeneric(stream, name, prefer, onProg) {
   onProg && onProg("ok", 1);
 }
 
-export { downloadCourse, scanLesson, downloadGeneric };
+export { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs };

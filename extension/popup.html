@@ -76,19 +76,28 @@
     #cmd { display: none; background: #0f1116; border: 1px solid #2a2e37; border-radius: 7px; padding: 8px;
            font-family: ui-monospace, monospace; font-size: 11px; color: #cbd2e0; }
     #cmd .copy { float: right; cursor: pointer; color: #4f8cff; }
-    #generic { display: none; flex-direction: column; gap: 10px; padding: 12px 14px; overflow-y: auto; }
+    #generic, #portal { display: none; flex-direction: column; gap: 10px; padding: 12px 14px; overflow-y: auto; flex: 1; }
     #glist { display: flex; flex-direction: column; gap: 8px; }
     .gstream { display: flex; align-items: center; gap: 8px; }
     .gstream button { flex: 1; background: #1f6f43; color: #fff; border: 0; border-radius: 8px; padding: 9px;
                       font-weight: 700; cursor: pointer; font-size: 13px; }
     .gstream button:disabled { background: #2a2e37; color: #8a93a6; cursor: default; }
     .gprog { min-width: 42px; text-align: right; color: #9aa3b2; font-variant-numeric: tabular-nums; }
+    #plist { display: flex; flex-direction: column; gap: 2px; }
+    .prow { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-radius: 6px; }
+    .prow:hover { background: #1b1e26; }
+    .prow .pnm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prow .pd { font-size: 11px; color: #7c8597; font-variant-numeric: tabular-nums; }
+    .prow .pp { min-width: 40px; text-align: right; color: #9aa3b2; font-size: 11px; font-variant-numeric: tabular-nums; }
+    #pdl { background: #1f6f43; color: #fff; border: 0; border-radius: 8px; padding: 10px; font-weight: 700; cursor: pointer; font-size: 13px; }
+    #pdl.stop { background: #6f2a2a; }
+    #pstatus { font-size: 12px; min-height: 14px; color: #9aa3b2; }
   </style>
 </head>
 <body>
   <header>
     <div class="row" style="justify-content:space-between">
-      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.2.0</span></h1>
+      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.3.0</span></h1>
       <button id="refresh" title="Reler o curso da aba atual">↻ reler</button>
     </div>
     <div id="course">Lendo o curso…</div>
@@ -130,6 +139,21 @@
     </div>
     <div class="bulk"><button id="gdetect">🔄 detectar de novo</button><span class="count" id="gstatus"></span></div>
     <div id="glist"></div>
+  </div>
+
+  <div id="portal">
+    <label class="field">Pasta do portal
+      <input id="pfolder" type="text" placeholder="Portal">
+    </label>
+    <div class="opts">
+      <label class="opt" style="margin-left:auto">Qualidade
+        <select id="pres"><option value="high">Mais alta</option><option value="low">Mais baixa</option></select>
+      </label>
+    </div>
+    <div class="bulk"><button id="pall">Marcar todas</button><button id="pnone">Nenhuma</button><span class="count" id="pcount"></span></div>
+    <div id="plist"></div>
+    <button id="pdl">⬇ Baixar selecionadas</button>
+    <div id="pstatus"></div>
   </div>
 
   <footer>

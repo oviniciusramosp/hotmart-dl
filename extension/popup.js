@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
 // Módulo ES: escopo próprio. Importa a API de download do download.js.
-import { downloadCourse, scanLesson, downloadGeneric } from "./download.js";
+import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -302,6 +302,85 @@ async function downloadGenericStream(stream, btn, prog) {
   finally { btn.disabled = false; }
 }
 
+// ---- adaptador dedicado: defiverso (portal estruturado, download em lote) ----
+let dvLessons = [], dvRunning = false, dvStop = false, dvTabId = null;
+
+async function initDefiverso(tab) {
+  document.querySelector("footer").style.display = "none";
+  $("#tree").style.display = "none";
+  $("#portal").style.display = "flex";
+  dvTabId = tab.id;
+  $("#course").textContent = "Lendo o portal…";
+  try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["defiverso.js"] }); }
+  catch (e) { $("#course").textContent = "Falha ao injetar o adaptador: " + e.message; return; }
+  let listing;
+  try {
+    const r = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: () => window.__dv.list() });
+    listing = r && r[0] && r[0].result;
+  } catch (e) { $("#course").textContent = "Falha ao ler o portal: " + e.message; return; }
+  if (!listing || !listing.lessons || !listing.lessons.length) {
+    $("#course").textContent = "Nenhuma aula encontrada. Abra a página de um portal e clique ↻ reler.";
+    return;
+  }
+  $("#course").textContent = listing.portal + " — " + listing.lessons.length + " aula(s)";
+  if (!$("#pfolder").value) $("#pfolder").value = listing.portal;
+  dvLessons = listing.lessons;
+  renderPortal();
+  $("#pall").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = true)); portalCount(); });
+  $("#pnone").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = false)); portalCount(); });
+  $("#pdl").addEventListener("click", onPortalDownload);
+}
+function renderPortal() {
+  const list = $("#plist"); list.innerHTML = "";
+  dvLessons.forEach((l, i) => {
+    const row = document.createElement("label"); row.className = "prow"; row.dataset.i = i;
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
+    cb.addEventListener("change", portalCount);
+    const nm = document.createElement("span"); nm.className = "pnm"; nm.textContent = pad2(i + 1) + " · " + l.name;
+    const dur = document.createElement("span"); dur.className = "pd"; dur.textContent = l.dur || "";
+    const pp = document.createElement("span"); pp.className = "pp";
+    row.append(cb, nm, dur, pp); list.appendChild(row);
+  });
+  portalCount();
+}
+function portalCount() {
+  const sel = document.querySelectorAll("#plist input:checked").length;
+  $("#pcount").textContent = sel + " / " + dvLessons.length;
+  if (!dvRunning) $("#pdl").disabled = sel === 0;
+}
+function setPortalProg(i, txt) { const r = document.querySelector(`#plist .prow[data-i="${i}"]`); if (r) r.querySelector(".pp").textContent = txt; }
+
+async function onPortalDownload() {
+  if (dvRunning) { dvStop = true; $("#pdl").textContent = "parando…"; return; }
+  const picked = [...document.querySelectorAll("#plist input:checked")].map((c) => +c.closest(".prow").dataset.i);
+  if (!picked.length) { $("#pstatus").textContent = "Marque ao menos uma aula."; return; }
+  dvRunning = true; dvStop = false;
+  const btn = $("#pdl"); btn.textContent = "■ Parar"; btn.classList.add("stop");
+  const folder = clean($("#pfolder").value || "Portal");
+  let ok = 0, fail = 0;
+  for (const i of picked) {
+    if (dvStop) break;
+    const l = dvLessons[i];
+    setPortalProg(i, "…"); $("#pstatus").textContent = "Resolvendo: " + l.name;
+    let resolved;
+    try {
+      const r = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN",
+        func: (idx, prefer) => window.__dv.resolve(idx, prefer), args: [i, $("#pres").value] });
+      resolved = r && r[0] && r[0].result;
+    } catch (e) { resolved = { error: e.message }; }
+    if (!resolved || resolved.error || !resolved.segs) { setPortalProg(i, "erro"); fail++; $("#pstatus").textContent = "Falha em " + l.name + ": " + ((resolved && resolved.error) || "sem dados"); continue; }
+    try {
+      const parts = await downloadResolved(resolved, (p) => setPortalProg(i, Math.round(p * 100) + "%"));
+      await saveTs(parts, folder + "/" + pad2(i + 1) + " - " + l.name);
+      setPortalProg(i, "✓"); ok++;
+    } catch (e) { setPortalProg(i, "erro"); fail++; }
+    $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
+  }
+  dvRunning = false; btn.textContent = "⬇ Baixar selecionadas"; btn.classList.remove("stop");
+  $("#pstatus").textContent = "Fim. " + ok + " baixadas, " + fail + " falhas" + (dvStop ? " (parado)" : "");
+  portalCount();
+}
+
 async function init() {
   const rb = $("#refresh");
   if (rb) rb.addEventListener("click", () => location.reload());  // re-lê o curso da aba atual
@@ -310,7 +389,8 @@ async function init() {
     $("#course").textContent = "Abra a página de um vídeo (site http/https).";
     return;
   }
-  if (!/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url)) { await initGeneric(tab); return; }  // multi-site
+  if (/^https:\/\/(.*\.)?defiverso\.com\//.test(tab.url)) { await initDefiverso(tab); return; }  // adaptador dedicado
+  if (!/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url)) { await initGeneric(tab); return; }  // multi-site genérico
   // re-tenta algumas vezes: ao trocar de curso a árvore React pode estar montando
   let data = null;
   for (let attempt = 0; attempt < 4; attempt++) {
