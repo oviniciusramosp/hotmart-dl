@@ -204,4 +204,4 @@ async function downloadGeneric(stream, name, prefer, onProg) {
   onProg && onProg("ok", 1);
 }
 
-export { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs };
+export { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob };

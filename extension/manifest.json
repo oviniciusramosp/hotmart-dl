@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hotmart Course Extractor (hotmart-dl)",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "Baixa vídeos de cursos: Hotmart e defiverso (estruturado, em lote) + captura genérica de HLS/mp4 em qualquer site.",
   "permissions": ["activeTab", "scripting", "downloads", "sidePanel", "declarativeNetRequest"],
   "host_permissions": ["<all_urls>"],

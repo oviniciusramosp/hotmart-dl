@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
 // Módulo ES: escopo próprio. Importa a API de download do download.js.
-import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs } from "./download.js";
+import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -326,6 +326,12 @@ async function initDefiverso(tab) {
   if (!$("#pfolder").value) $("#pfolder").value = listing.portal;
   dvLessons = listing.lessons;
   renderPortal();
+  try {  // conta os materiais pra mostrar no checkbox
+    const mr = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: () => window.__dv.materials() });
+    const mats = (mr && mr[0] && mr[0].result) || [];
+    $("#pmatn").textContent = mats.length ? "(" + mats.length + ")" : "";
+    if (!mats.length) { $("#pmat").checked = false; $("#pmat").disabled = true; }
+  } catch (e) {}
   $("#pall").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = true)); portalCount(); });
   $("#pnone").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = false)); portalCount(); });
   $("#pdl").addEventListener("click", onPortalDownload);
@@ -376,9 +382,40 @@ async function onPortalDownload() {
     } catch (e) { setPortalProg(i, "erro"); fail++; }
     $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
   }
+  let mat = null;
+  if (!dvStop && $("#pmat").checked) {
+    $("#pstatus").textContent = "Baixando materiais…";
+    mat = await downloadPortalMaterials(folder);
+  }
   dvRunning = false; btn.textContent = "⬇ Baixar selecionadas"; btn.classList.remove("stop");
-  $("#pstatus").textContent = "Fim. " + ok + " baixadas, " + fail + " falhas" + (dvStop ? " (parado)" : "");
+  $("#pstatus").textContent = "Fim. " + ok + " aulas, " + fail + " falhas"
+    + (mat ? " · materiais: " + mat.files + " arquivo(s) + Links.txt" : "") + (dvStop ? " (parado)" : "");
   portalCount();
+}
+
+// materiais do portal: arquivos (PDF etc.) em Materiais/, e Links.txt com todos (inclui externos)
+async function downloadPortalMaterials(folder) {
+  let mats = [];
+  try {
+    const mr = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN", func: () => window.__dv.materials() });
+    mats = (mr && mr[0] && mr[0].result) || [];
+  } catch (e) {}
+  if (!mats.length) return { files: 0, links: 0 };
+  const dir = folder + "/Materiais/";
+  const txt = mats.map((m) => (m.label || "(sem rótulo)") + ": " + m.url).join("\n") + "\n";
+  try { await saveBlob(new Blob([txt], { type: "text/plain" }), dir + "Links.txt"); } catch (e) {}
+  let files = 0;
+  for (const m of mats) {
+    if (!m.isFile) continue;
+    try {
+      const blob = await fetch(m.url).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); });
+      const ext = (m.url.split("?")[0].match(/\.[a-z0-9]{2,5}$/i) || [".pdf"])[0];
+      const base = clean(m.label || m.url.split("?")[0].split("/").pop().replace(/\.[a-z0-9]+$/i, "") || "material");
+      await saveBlob(blob, dir + base + ext);
+      files++;
+    } catch (e) {}
+  }
+  return { files, links: mats.length };
 }
 
 async function init() {

@@ -24,6 +24,24 @@
     return { portal: portal, lessons: items().map(function (i) { return { name: i.name, dur: i.dur }; }) };
   };
 
+  // materiais: links do accordion "Links e materiais" (Perguntas Frequentes)
+  window.__dv.materials = function () {
+    var hdr = [].slice.call(document.querySelectorAll("summary,h1,h2,h3,h4,strong,b,span,div"))
+      .find(function (e) { return e.children.length <= 3 && /^\s*links e materiais\s*$/i.test((e.textContent || "").trim()); });
+    if (!hdr) return [];
+    var sec = hdr;
+    for (var i = 0; i < 6 && sec; i++) { var p = sec.parentElement; if (!p) break; sec = p; if (sec.querySelectorAll("a[href]").length >= 3) break; }
+    if (!sec) return [];
+    var fileExt = /\.(pdf|zip|rar|7z|xlsx?|docx?|pptx?|csv|txt|epub|mobi|mp3|wav|png|jpe?g|gif|svg)(\?|$)/i;
+    var labelFor = function (a) { var e = a; for (var j = 0; j < 5 && e; j++) { e = e.parentElement; if (!e || e === sec) break; var t = (e.textContent || "").replace(/\s+/g, " ").replace(/:?\s*LINK\s*$/i, "").trim(); if (t && t.length < 90) return t; } return ""; };
+    var seen = {}, out = [];
+    [].slice.call(sec.querySelectorAll("a[href]")).forEach(function (a) {
+      var url = a.href; if (!url || seen[url] || url.indexOf("javascript:") === 0) return; seen[url] = 1;
+      out.push({ label: labelFor(a), url: url, isFile: fileExt.test(url.split("?")[0]) });
+    });
+    return out;
+  };
+
   function hook() {
     if (window.__dv._hooked) return;
     window.__dv._hooked = true; window.__dv._last = null;
