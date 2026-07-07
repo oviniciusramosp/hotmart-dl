@@ -58,16 +58,16 @@ async function embedToM3u8(embedUrl, prefer) {
 // Baixa os segmentos HLS (decifra AES-128) e devolve os TS já decifrados, EM ORDEM.
 // Pool de POOL fetches simultâneos: satura a rede sem multiplicar memória (1 vídeo por vez).
 // Se UM segmento falhar, o Promise.all rejeita e o vídeo inteiro erra (nunca salva parcial).
-async function downloadHlsParts(m3u8url, onProgress) {
+async function downloadHlsParts(m3u8url, onProgress, prefer) {
   let pl = await fetch(m3u8url).then((r) => r.text());
-  if (pl.includes("#EXT-X-STREAM-INF")) {  // master -> melhor variante
+  if (pl.includes("#EXT-X-STREAM-INF")) {  // master -> variante (mais alta, ou mais baixa se prefer=low)
     const lines = pl.split("\n"), vs = [];
     for (let i = 0; i < lines.length; i++) if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
       const h = parseInt((lines[i].match(/RESOLUTION=\d+x(\d+)/) || [])[1] || "0", 10);
       const u = (lines[i + 1] || "").trim();
       if (u && !u.startsWith("#")) vs.push({ h, url: new URL(u, m3u8url).href });
     }
-    if (vs.length) { vs.sort((x, y) => y.h - x.h); m3u8url = vs[0].url; pl = await fetch(m3u8url).then((r) => r.text()); }
+    if (vs.length) { vs.sort((x, y) => y.h - x.h); m3u8url = (prefer === "low" ? vs[vs.length - 1] : vs[0]).url; pl = await fetch(m3u8url).then((r) => r.text()); }
   }
   let key = null, ivFixed = null;
   const km = pl.match(/#EXT-X-KEY:[^\n]*URI="([^"]+)"/);
@@ -169,4 +169,21 @@ async function scanLesson(hash, D) {
   return { hasDesc, att };
 }
 
-export { downloadCourse, scanLesson };
+// Download genérico (modo multi-site): recebe um stream detectado e salva.
+// hls -> mesmo pipeline (segmentos paralelos, AES) e sai .ts; file -> baixa direto.
+async function downloadGeneric(stream, name, prefer, onProg) {
+  if (stream.kind === "hls") {
+    const parts = await downloadHlsParts(stream.url, (p) => onProg && onProg("baixando", p), prefer);
+    await saveBlob(new Blob(parts, { type: "video/mp2t" }), safeFile(name) + ".ts");
+  } else if (stream.kind === "file") {
+    onProg && onProg("baixando", null);
+    const blob = await fetch(stream.url).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); });
+    const ext = (stream.url.split("?")[0].match(/\.(mp4|webm)$/i) || [".mp4"])[0].toLowerCase();
+    await saveBlob(blob, safeFile(name) + ext);
+  } else {
+    throw new Error("formato não suportado: " + stream.kind);  // dash (.mpd) ainda não
+  }
+  onProg && onProg("ok", 1);
+}
+
+export { downloadCourse, scanLesson, downloadGeneric };

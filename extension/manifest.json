@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Hotmart Course Extractor (hotmart-dl)",
-  "version": "3.1.6",
-  "description": "Painel lateral pra escolher aulas, padrao de nome e qualidade, e exportar um course.json pra baixar com o hotmart-dl.",
+  "version": "3.2.0",
+  "description": "Baixa vídeos de cursos: Hotmart (curso estruturado) + captura genérica de HLS/mp4 em qualquer site.",
   "permissions": ["activeTab", "scripting", "downloads", "sidePanel", "declarativeNetRequest"],
-  "host_permissions": ["https://hotmart.com/*", "https://*.hotmart.com/*"],
+  "host_permissions": ["<all_urls>"],
   "declarative_net_request": {
     "rule_resources": [
       { "id": "hotmart_referer", "enabled": false, "path": "rules.json" }

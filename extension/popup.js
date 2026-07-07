@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
 // Módulo ES: escopo próprio. Importa a API de download do download.js.
-import { downloadCourse, scanLesson } from "./download.js";
+import { downloadCourse, scanLesson, downloadGeneric } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -253,14 +253,64 @@ async function onDownloadHere() {
   });
 }
 
+// ---- modo genérico (qualquer site sem adaptador dedicado) ----
+async function initGeneric(tab) {
+  document.querySelector("footer").style.display = "none";
+  $("#tree").style.display = "none";
+  $("#generic").style.display = "flex";
+  let host = ""; try { host = new URL(tab.url).hostname; } catch (e) {}
+  $("#course").textContent = "Modo genérico — " + host;
+  const scan = async () => {
+    $("#gstatus").textContent = "detectando…";
+    let res;
+    try { res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["detect.js"] }); }
+    catch (e) { $("#gstatus").textContent = "Falha ao ler a página: " + e.message; return; }
+    const d = (res && res[0] && res[0].result) || { streams: [], title: "" };
+    if (d.title && !$("#gname").value) $("#gname").value = d.title;
+    renderStreams(d.streams || []);
+  };
+  $("#gdetect").addEventListener("click", scan);
+  await scan();
+}
+function renderStreams(streams) {
+  const usable = streams.filter((s) => s.kind === "hls" || s.kind === "file");
+  const list = $("#glist"); list.innerHTML = "";
+  if (!usable.length) {
+    $("#gstatus").textContent = "Nenhum vídeo detectado. Dê ▶ play no vídeo e clique “🔄 detectar de novo”.";
+    return;
+  }
+  $("#gstatus").textContent = usable.length + " vídeo(s) detectado(s)";
+  usable.forEach((s, i) => {
+    const row = document.createElement("div"); row.className = "gstream";
+    const btn = document.createElement("button");
+    btn.textContent = `⬇ Baixar vídeo ${usable.length > 1 ? "#" + (i + 1) + " " : ""}(${s.kind === "hls" ? "HLS→.ts" : "arquivo"})`;
+    const prog = document.createElement("span"); prog.className = "gprog";
+    btn.addEventListener("click", () => downloadGenericStream(s, btn, prog));
+    row.appendChild(btn); row.appendChild(prog); list.appendChild(row);
+  });
+}
+async function downloadGenericStream(stream, btn, prog) {
+  const name = clean($("#gname").value || "video");
+  btn.disabled = true; prog.textContent = "…";
+  try {
+    await downloadGeneric(stream, name, $("#gres").value, (status, pct) => {
+      if (status === "baixando" && pct != null) prog.textContent = Math.round(pct * 100) + "%";
+      else if (status === "baixando") prog.textContent = "…";
+      else if (status === "ok") prog.textContent = "✓";
+    });
+  } catch (e) { prog.textContent = "erro"; $("#gstatus").textContent = "Falha: " + e.message; }
+  finally { btn.disabled = false; }
+}
+
 async function init() {
   const rb = $("#refresh");
   if (rb) rb.addEventListener("click", () => location.reload());  // re-lê o curso da aba atual
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url || "")) {
-    $("#course").textContent = "Abra um curso no hotmart.com, depois clique em ↻ reler.";
+  if (!tab || !/^https?:\/\//.test(tab.url || "")) {
+    $("#course").textContent = "Abra a página de um vídeo (site http/https).";
     return;
   }
+  if (!/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url)) { await initGeneric(tab); return; }  // multi-site
   // re-tenta algumas vezes: ao trocar de curso a árvore React pode estar montando
   let data = null;
   for (let attempt = 0; attempt < 4; attempt++) {
