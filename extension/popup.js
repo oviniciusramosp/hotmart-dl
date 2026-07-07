@@ -340,13 +340,22 @@ function renderPortal() {
   const list = $("#plist"); list.innerHTML = "";
   dvLessons.forEach((l, i) => {
     const row = document.createElement("label"); row.className = "prow"; row.dataset.i = i;
+    // seletor: checkbox <-> anel/check (mesma célula), igual ao Hotmart
+    const sel = document.createElement("span"); sel.className = "sel";
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
     cb.addEventListener("change", portalCount);
+    const prog = document.createElement("span"); prog.className = "prog";
+    sel.append(cb, prog);
+    prog.addEventListener("click", (e) => {  // clicar no check re-seleciona a aula
+      if (!sel.classList.contains("done")) return;
+      e.preventDefault(); e.stopPropagation();
+      sel.classList.remove("busy", "done"); prog.innerHTML = "";
+      cb.checked = true; portalCount();
+    });
     const nm = document.createElement("span"); nm.className = "pnm"; nm.textContent = pad2(i + 1) + " · " + l.name;
     const icons = document.createElement("span"); icons.className = "icons"; icons.innerHTML = IC.video;  // defiverso: toda aula é vídeo
     const dur = document.createElement("span"); dur.className = "pd"; dur.textContent = l.dur || "";
-    const pp = document.createElement("span"); pp.className = "pp";
-    row.append(cb, nm, icons, dur, pp); list.appendChild(row);
+    row.append(sel, nm, icons, dur); list.appendChild(row);
   });
   portalCount();
 }
@@ -355,7 +364,16 @@ function portalCount() {
   $("#pcount").textContent = sel + " / " + dvLessons.length;
   if (!dvRunning) $("#pdl").disabled = sel === 0;
 }
-function setPortalProg(i, txt) { const r = document.querySelector(`#plist .prow[data-i="${i}"]`); if (r) r.querySelector(".pp").textContent = txt; }
+function setPortalProg(i, status, pct) {  // anel/spinner/check no lugar do checkbox (igual Hotmart)
+  const row = document.querySelector(`#plist .prow[data-i="${i}"]`); if (!row) return;
+  const sel = row.querySelector(".sel"), pr = sel.querySelector(".prog");
+  sel.classList.remove("done");
+  if (status === "baixando" && pct != null) { sel.classList.add("busy"); pr.innerHTML = ringSvg(Math.round(pct * 100)); }
+  else if (status === "resolvendo") { sel.classList.add("busy"); pr.innerHTML = SPIN; }
+  else if (status === "ok") { sel.classList.add("busy", "done"); pr.innerHTML = CHECK; }
+  else if (status === "erro") { sel.classList.add("busy", "done"); pr.innerHTML = XMARK; }
+  else { sel.classList.remove("busy"); pr.innerHTML = ""; }
+}
 
 async function onPortalDownload() {
   if (dvRunning) { dvStop = true; $("#pdl").textContent = "parando…"; return; }
@@ -368,7 +386,7 @@ async function onPortalDownload() {
   for (const i of picked) {
     if (dvStop) break;
     const l = dvLessons[i];
-    setPortalProg(i, "…"); $("#pstatus").textContent = "Resolvendo: " + l.name;
+    setPortalProg(i, "resolvendo"); $("#pstatus").textContent = "Resolvendo: " + l.name;
     let resolved;
     try {
       const r = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN",
@@ -377,9 +395,9 @@ async function onPortalDownload() {
     } catch (e) { resolved = { error: e.message }; }
     if (!resolved || resolved.error || !resolved.segs) { setPortalProg(i, "erro"); fail++; $("#pstatus").textContent = "Falha em " + l.name + ": " + ((resolved && resolved.error) || "sem dados"); continue; }
     try {
-      const parts = await downloadResolved(resolved, (p) => setPortalProg(i, Math.round(p * 100) + "%"));
+      const parts = await downloadResolved(resolved, (p) => setPortalProg(i, "baixando", p));
       await saveTs(parts, folder + "/" + pad2(i + 1) + " - " + l.name);
-      setPortalProg(i, "✓"); ok++;
+      setPortalProg(i, "ok"); ok++;
     } catch (e) { setPortalProg(i, "erro"); fail++; }
     $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
   }
