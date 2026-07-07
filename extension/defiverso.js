@@ -42,6 +42,20 @@
     return out;
   };
 
+  // FAQ (Perguntas Frequentes) como "descrição" do portal -> HTML
+  window.__dv.faq = function () {
+    var ds = [].slice.call(document.querySelectorAll("details"));
+    if (!ds.length) return null;
+    var sec = ds[0].parentElement;  // menor container com TODOS os accordions
+    while (sec && sec.parentElement && sec.querySelectorAll("details").length < ds.length) sec = sec.parentElement;
+    if (!sec) return null;
+    var clone = sec.cloneNode(true);
+    [].slice.call(clone.querySelectorAll("details")).forEach(function (d) { d.setAttribute("open", ""); });  // abre tudo pra leitura offline
+    [].slice.call(clone.querySelectorAll("script,style,svg,button,input")).forEach(function (s) { s.remove(); });
+    var portal = ((document.querySelector("h1") || {}).textContent || "Portal").replace(/\s+/g, " ").trim();
+    return { title: portal + " — Perguntas Frequentes", html: clone.innerHTML };
+  };
+
   function hook() {
     if (window.__dv._hooked) return;
     window.__dv._hooked = true; window.__dv._last = null;

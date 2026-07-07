@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
 // Módulo ES: escopo próprio. Importa a API de download do download.js.
-import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob } from "./download.js";
+import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob, saveDescription } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -383,6 +383,15 @@ async function onPortalDownload() {
     } catch (e) { setPortalProg(i, "erro"); fail++; }
     $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
   }
+  let desc = false;
+  if (!dvStop && $("#pdesc").checked) {
+    $("#pstatus").textContent = "Salvando descrição (FAQ)…";
+    try {
+      const fr = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN", func: () => window.__dv.faq() });
+      const faq = fr && fr[0] && fr[0].result;
+      if (faq && faq.html) { await saveDescription(faq.html, faq.title, folder + "/Descrição (FAQ).html"); desc = true; }
+    } catch (e) {}
+  }
   let mat = null;
   if (!dvStop && $("#pmat").checked) {
     $("#pstatus").textContent = "Baixando materiais…";
@@ -390,7 +399,7 @@ async function onPortalDownload() {
   }
   dvRunning = false; btn.textContent = "⬇ Baixar selecionadas"; btn.classList.remove("stop");
   $("#pstatus").textContent = "Fim. " + ok + " aulas, " + fail + " falhas"
-    + (mat ? " · materiais: " + mat.files + " arquivo(s) + Links.txt" : "") + (dvStop ? " (parado)" : "");
+    + (desc ? " · descrição✓" : "") + (mat ? " · materiais: " + mat.files + " arquivo(s) + Links.txt" : "") + (dvStop ? " (parado)" : "");
   portalCount();
 }
 
