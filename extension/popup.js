@@ -343,9 +343,10 @@ function renderPortal() {
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
     cb.addEventListener("change", portalCount);
     const nm = document.createElement("span"); nm.className = "pnm"; nm.textContent = pad2(i + 1) + " · " + l.name;
+    const icons = document.createElement("span"); icons.className = "icons"; icons.innerHTML = IC.video;  // defiverso: toda aula é vídeo
     const dur = document.createElement("span"); dur.className = "pd"; dur.textContent = l.dur || "";
     const pp = document.createElement("span"); pp.className = "pp";
-    row.append(cb, nm, dur, pp); list.appendChild(row);
+    row.append(cb, nm, icons, dur, pp); list.appendChild(row);
   });
   portalCount();
 }
