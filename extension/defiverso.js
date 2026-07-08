@@ -12,8 +12,8 @@
     var seen = {}, out = [];
     all.forEach(function (e) {
       var raw = e.textContent.replace(/\s+/g, " ").trim();
-      var dm = raw.match(/\((\d{1,2}:\d{2})\)\s*$/);
-      var name = raw.replace(/\s*\(\d{1,2}:\d{2}\)\s*$/, "").replace(/^\d+[.)]\s*/, "").trim();
+      var dm = raw.match(/\(((?:\d{1,2}:)?\d{1,2}:\d{2})\)\s*$/);  // MM:SS ou H:MM:SS
+      var name = raw.replace(/\s*\((?:\d{1,2}:)?\d{1,2}:\d{2}\)\s*$/, "").replace(/^\d+[.)]\s*/, "").trim();
       if (name && !seen[name]) { seen[name] = 1; out.push({ el: e, name: name, dur: dm ? dm[1] : "" }); }
     });
     return out;
