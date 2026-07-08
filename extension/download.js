@@ -72,13 +72,27 @@ async function downloadHlsParts(m3u8url, onProgress, prefer) {
   let key = null, ivFixed = null;
   const km = pl.match(/#EXT-X-KEY:[^\n]*URI="([^"]+)"/);
   if (km) {
-    const kb = await fetch(new URL(km[1], m3u8url).href).then((r) => r.arrayBuffer());
+    const kb = await fetchBuf(new URL(km[1], m3u8url).href);
     key = await crypto.subtle.importKey("raw", kb, { name: "AES-CBC" }, false, ["decrypt"]);
     const ivm = pl.match(/IV=0x([0-9a-fA-F]+)/); if (ivm) ivFixed = hexToBytes(ivm[1]);
   }
   const seq0 = parseInt((pl.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/) || [])[1] || "0", 10);
   const segs = pl.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).map((l) => new URL(l, m3u8url).href);
   return fetchSegments(segs, key, ivFixed, seq0, onProgress);
+}
+
+// fetch com retry+backoff e checagem de status; erro sem vazar a query assinada.
+async function fetchBuf(url, tries = 3) {
+  for (let a = 0; ; a++) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return await r.arrayBuffer();
+    } catch (e) {
+      if (a >= tries - 1) throw new Error(e.message + " (" + (url.split("?")[0].split("/").pop() || "seg") + ")");
+      await new Promise((res) => setTimeout(res, 400 * (a + 1)));  // 400ms, 800ms…
+    }
+  }
 }
 
 // pool de 5 fetches simultâneos (satura a rede sem multiplicar memória); ordem preservada
@@ -89,7 +103,7 @@ async function fetchSegments(segs, key, ivFixed, seq0, onProgress) {
   async function worker() {
     while (next < segs.length) {
       const i = next++;
-      const enc = await fetch(segs[i]).then((r) => r.arrayBuffer());
+      const enc = await fetchBuf(segs[i]);
       parts[i] = key ? new Uint8Array(await crypto.subtle.decrypt({ name: "AES-CBC", iv: ivFixed || seqIV(seq0 + i) }, key, enc)) : new Uint8Array(enc);
       done++;
       if (onProgress) onProgress(done / segs.length);
@@ -104,7 +118,7 @@ async function fetchSegments(segs, key, ivFixed, seq0, onProgress) {
 async function downloadResolved(resolved, onProgress) {
   let key = null, ivFixed = null;
   if (resolved.keyUrl) {
-    const kb = await fetch(resolved.keyUrl).then((r) => r.arrayBuffer());
+    const kb = await fetchBuf(resolved.keyUrl);
     key = await crypto.subtle.importKey("raw", kb, { name: "AES-CBC" }, false, ["decrypt"]);
     if (resolved.ivHex) ivFixed = hexToBytes(resolved.ivHex);
   }

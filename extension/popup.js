@@ -405,11 +405,21 @@ async function onPortalDownload() {
       resolved = await resolvePortalLesson(i);
     }
     if (!resolved || resolved.error || !resolved.segs) { failLesson(i, l.name, (resolved && resolved.error) || "sem segmentos"); continue; }
-    try {
-      const parts = await downloadResolved(resolved, (p) => setPortalProg(i, "baixando", p));
-      await saveTs(parts, folder + "/" + pad2(i + 1) + " - " + l.name);
-      setPortalProg(i, "ok"); ok++;
-    } catch (e) { failLesson(i, l.name, "download: " + e.message); }
+    let downloaded = false, lastErr = "";
+    for (let attempt = 0; attempt < 2 && !downloaded && !dvStop; attempt++) {
+      if (attempt > 0) {  // 2ª tentativa: re-resolve (assinaturas frescas) antes de rebaixar
+        setPortalProg(i, "resolvendo");
+        const r2 = await resolvePortalLesson(i);
+        if (!r2 || r2.error || !r2.segs) { lastErr = (r2 && r2.error) || "sem segmentos"; break; }
+        resolved = r2;
+      }
+      try {
+        const parts = await downloadResolved(resolved, (p) => setPortalProg(i, "baixando", p));
+        await saveTs(parts, folder + "/" + pad2(i + 1) + " - " + l.name);
+        setPortalProg(i, "ok"); ok++; downloaded = true;
+      } catch (e) { lastErr = "download: " + e.message; }
+    }
+    if (!downloaded) failLesson(i, l.name, lastErr);
     $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
   }
   if (fails.length) {  // lista os motivos (também no tooltip de cada ✗)
