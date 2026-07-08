@@ -269,7 +269,7 @@ async function initGeneric(tab) {
     if (d.title && !$("#gname").value) $("#gname").value = d.title;
     renderStreams(d.streams || []);
   };
-  $("#gdetect").addEventListener("click", scan);
+  $("#gdetect").onclick = scan;
   await scan();
 }
 function renderStreams(streams) {
@@ -309,6 +309,8 @@ async function initDefiverso(tab) {
   document.querySelector("footer").style.display = "none";
   $("#tree").style.display = "none";
   $("#portal").style.display = "flex";
+  $("#pmat").disabled = false; $("#pmat").checked = true; $("#pmatn").textContent = "";
+  $("#pdl").textContent = "⬇ Baixar selecionadas"; $("#pdl").classList.remove("stop");
   dvTabId = tab.id;
   $("#course").textContent = "Lendo o portal…";
   try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["defiverso.js"] }); }
@@ -323,7 +325,7 @@ async function initDefiverso(tab) {
     return;
   }
   $("#course").textContent = listing.portal + " — " + listing.lessons.length + " aula(s)";
-  if (!$("#pfolder").value) $("#pfolder").value = listing.portal;
+  $("#pfolder").value = listing.portal;
   dvLessons = listing.lessons;
   renderPortal();
   try {  // conta os materiais pra mostrar no checkbox
@@ -332,9 +334,9 @@ async function initDefiverso(tab) {
     $("#pmatn").textContent = mats.length ? "(" + mats.length + ")" : "";
     if (!mats.length) { $("#pmat").checked = false; $("#pmat").disabled = true; }
   } catch (e) {}
-  $("#pall").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = true)); portalCount(); });
-  $("#pnone").addEventListener("click", () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = false)); portalCount(); });
-  $("#pdl").addEventListener("click", onPortalDownload);
+  $("#pall").onclick = () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = true)); portalCount(); };
+  $("#pnone").onclick = () => { document.querySelectorAll("#plist input").forEach((c) => (c.checked = false)); portalCount(); };
+  $("#pdl").onclick = onPortalDownload;
 }
 function renderPortal() {
   const list = $("#plist"); list.innerHTML = "";
@@ -460,9 +462,17 @@ async function downloadPortalMaterials(folder) {
   return { files, links: mats.length };
 }
 
-async function init() {
-  const rb = $("#refresh");
-  if (rb) rb.addEventListener("click", () => location.reload());  // re-lê o curso da aba atual
+function resetPanel() {  // volta o painel ao estado inicial (pro "reler" re-detectar in-place)
+  DATA = null; dvLessons = []; dvRunning = false; dvStop = false;
+  ["controls", "tree", "generic", "portal"].forEach((id) => { const e = $("#" + id); if (e) e.style.display = "none"; });
+  const f = document.querySelector("footer"); if (f) f.style.display = "";
+  ["#tree", "#plist", "#glist", "#pfails"].forEach((s) => { const e = $(s); if (e) e.innerHTML = ""; });
+  const ps = $("#pstatus"); if (ps) ps.textContent = "";
+  $("#course").textContent = "Lendo…";
+}
+async function reler() { resetPanel(); await route(); }
+
+async function route() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !/^https?:\/\//.test(tab.url || "")) {
     $("#course").textContent = "Abra a página de um vídeo (site http/https).";
@@ -487,27 +497,33 @@ async function init() {
 
   // preset dropdown
   const sel = $("#preset");
+  sel.innerHTML = "";  // evita opções duplicadas ao reler
   PRESETS.forEach((p) => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.label; sel.appendChild(o); });
-  sel.addEventListener("change", () => {
+  sel.onchange = () => {
     $("#customWrap").style.display = sel.value === "custom" ? "flex" : "none";
     if (sel.value === "custom") {
       const p = PRESETS[0]; if (!$("#folderTpl").value) $("#folderTpl").value = p.folder;
       if (!$("#fileTpl").value) $("#fileTpl").value = p.file;
     }
     updatePreview();
-  });
-  $("#folderTpl").addEventListener("input", updatePreview);
-  $("#fileTpl").addEventListener("input", updatePreview);
+  };
+  $("#folderTpl").oninput = updatePreview;
+  $("#fileTpl").oninput = updatePreview;
 
   const nv = DATA.modules.reduce((s, M) => s + M.lessons.filter((l) => l.hasVideo).length, 0);
   $("#course").textContent = `${DATA.course} — ${DATA.modules.length} módulos, ${nv} vídeos`;
   $("#controls").style.display = "flex";
   buildTree();
   panelScan();   // em segundo plano: preenche os ícones de descrição/material
-  $("#all").addEventListener("click", () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
-  $("#none").addEventListener("click", () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); });
-  $("#go").addEventListener("click", exportJSON);
-  $("#dlhere").addEventListener("click", onDownloadHere);
+  $("#all").onclick = () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); };
+  $("#none").onclick = () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); };
+  $("#go").onclick = exportJSON;
+  $("#dlhere").onclick = onDownloadHere;
   updatePreview();
+}
+
+async function init() {
+  const rb = $("#refresh"); if (rb) rb.onclick = reler;  // reler = re-detecta sem recarregar o painel (mais confiável no Dia)
+  await route();
 }
 init();
