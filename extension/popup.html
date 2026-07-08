@@ -91,12 +91,14 @@
     #pdl { background: #1f6f43; color: #fff; border: 0; border-radius: 8px; padding: 10px; font-weight: 700; cursor: pointer; font-size: 13px; }
     #pdl.stop { background: #6f2a2a; }
     #pstatus { font-size: 12px; min-height: 14px; color: #9aa3b2; }
+    #pfails { font-size: 11px; color: #ff8a8a; display: flex; flex-direction: column; gap: 2px; word-break: break-word; }
+    #pfails .fh { color: #9aa3b2; }
   </style>
 </head>
 <body>
   <header>
     <div class="row" style="justify-content:space-between">
-      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.3.4</span></h1>
+      <h1>hotmart-dl <span style="font-weight:400;font-size:11px;color:#7c8597">v3.3.5</span></h1>
       <button id="refresh" title="Reler o curso da aba atual">↻ reler</button>
     </div>
     <div id="course">Lendo o curso…</div>
@@ -155,6 +157,7 @@
     <div id="plist"></div>
     <button id="pdl">⬇ Baixar selecionadas</button>
     <div id="pstatus"></div>
+    <div id="pfails"></div>
   </div>
 
   <footer>

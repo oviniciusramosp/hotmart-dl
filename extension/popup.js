@@ -364,15 +364,23 @@ function portalCount() {
   $("#pcount").textContent = sel + " / " + dvLessons.length;
   if (!dvRunning) $("#pdl").disabled = sel === 0;
 }
-function setPortalProg(i, status, pct) {  // anel/spinner/check no lugar do checkbox (igual Hotmart)
+function setPortalProg(i, status, pct, reason) {  // anel/spinner/check no lugar do checkbox (igual Hotmart)
   const row = document.querySelector(`#plist .prow[data-i="${i}"]`); if (!row) return;
   const sel = row.querySelector(".sel"), pr = sel.querySelector(".prog");
   sel.classList.remove("done");
   if (status === "baixando" && pct != null) { sel.classList.add("busy"); pr.innerHTML = ringSvg(Math.round(pct * 100)); }
   else if (status === "resolvendo") { sel.classList.add("busy"); pr.innerHTML = SPIN; }
-  else if (status === "ok") { sel.classList.add("busy", "done"); pr.innerHTML = CHECK; }
-  else if (status === "erro") { sel.classList.add("busy", "done"); pr.innerHTML = XMARK; }
+  else if (status === "ok") { sel.classList.add("busy", "done"); pr.innerHTML = CHECK; row.title = ""; }
+  else if (status === "erro") { sel.classList.add("busy", "done"); pr.innerHTML = XMARK; row.title = reason ? "Falha: " + reason : "Falha"; }
   else { sel.classList.remove("busy"); pr.innerHTML = ""; }
+}
+
+async function resolvePortalLesson(i) {
+  try {
+    const r = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN",
+      func: (idx, prefer) => window.__dv.resolve(idx, prefer), args: [i, $("#pres").value] });
+    return (r && r[0] && r[0].result) || { error: "sem retorno da página (aba fechou?)" };
+  } catch (e) { return { error: e.message }; }
 }
 
 async function onPortalDownload() {
@@ -382,24 +390,30 @@ async function onPortalDownload() {
   dvRunning = true; dvStop = false;
   const btn = $("#pdl"); btn.textContent = "■ Parar"; btn.classList.add("stop");
   const folder = clean($("#pfolder").value || "Portal");
-  let ok = 0, fail = 0;
+  $("#pfails").innerHTML = "";
+  let ok = 0, fail = 0; const fails = [];
+  const failLesson = (i, name, reason) => { setPortalProg(i, "erro", null, reason); fail++; fails.push({ name, reason }); console.warn("[portal] falha:", name, "→", reason); };
   for (const i of picked) {
     if (dvStop) break;
     const l = dvLessons[i];
     setPortalProg(i, "resolvendo"); $("#pstatus").textContent = "Resolvendo: " + l.name;
-    let resolved;
-    try {
-      const r = await chrome.scripting.executeScript({ target: { tabId: dvTabId }, world: "MAIN",
-        func: (idx, prefer) => window.__dv.resolve(idx, prefer), args: [i, $("#pres").value] });
-      resolved = r && r[0] && r[0].result;
-    } catch (e) { resolved = { error: e.message }; }
-    if (!resolved || resolved.error || !resolved.segs) { setPortalProg(i, "erro"); fail++; $("#pstatus").textContent = "Falha em " + l.name + ": " + ((resolved && resolved.error) || "sem dados"); continue; }
+    let resolved = await resolvePortalLesson(i);
+    if (!resolved || resolved.error || !resolved.segs) {  // 1 retry (player pode ter demorado a trocar de aula)
+      await new Promise((r) => setTimeout(r, 700));
+      resolved = await resolvePortalLesson(i);
+    }
+    if (!resolved || resolved.error || !resolved.segs) { failLesson(i, l.name, (resolved && resolved.error) || "sem segmentos"); continue; }
     try {
       const parts = await downloadResolved(resolved, (p) => setPortalProg(i, "baixando", p));
       await saveTs(parts, folder + "/" + pad2(i + 1) + " - " + l.name);
       setPortalProg(i, "ok"); ok++;
-    } catch (e) { setPortalProg(i, "erro"); fail++; }
+    } catch (e) { failLesson(i, l.name, "download: " + e.message); }
     $("#pstatus").textContent = ok + " baixadas, " + fail + " falhas";
+  }
+  if (fails.length) {  // lista os motivos (também no tooltip de cada ✗)
+    const pf = $("#pfails");
+    const h = document.createElement("div"); h.className = "fh"; h.textContent = "Falhas:"; pf.appendChild(h);
+    fails.forEach((f) => { const d = document.createElement("div"); d.textContent = "✗ " + f.name + " — " + f.reason; pf.appendChild(d); });
   }
   let desc = false;
   if (!dvStop && $("#pdesc").checked) {
