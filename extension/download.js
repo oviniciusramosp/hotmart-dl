@@ -124,7 +124,9 @@ async function downloadResolved(resolved, onProgress) {
   }
   return fetchSegments(resolved.segs || [], key, ivFixed, resolved.seq0 || 0, onProgress);
 }
-async function saveTs(parts, name) { await saveBlob(new Blob(parts, { type: "video/mp2t" }), safeFile(name) + ".ts"); }
+// sanitiza preservando as barras de subpasta (cada componente sanitizado à parte)
+function safeRel(rel) { return String(rel || "").split("/").map((p) => safeFile(p)).join("/") || "arquivo"; }
+async function saveTs(parts, name) { await saveBlob(new Blob(parts, { type: "video/mp2t" }), safeRel(name) + ".ts"); }
 
 function blobToDataUri(blob) { return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); }); }
 async function saveDescription(contentHtml, title, relPath) {
@@ -218,4 +220,4 @@ async function downloadGeneric(stream, name, prefer, onProg) {
   onProg && onProg("ok", 1);
 }
 
-export { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob, saveDescription };
+export { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob, saveDescription, downloadHlsParts, safeRel };

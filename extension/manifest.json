@@ -1,27 +1,56 @@
 {
   "manifest_version": 3,
   "name": "Hotmart Course Extractor (hotmart-dl)",
-  "version": "3.3.8",
-  "description": "Baixa vídeos de cursos: Hotmart e defiverso (estruturado, em lote) + captura genérica de HLS/mp4 em qualquer site.",
-  "permissions": ["activeTab", "scripting", "downloads", "sidePanel", "declarativeNetRequest"],
-  "host_permissions": ["<all_urls>"],
+  "version": "3.4.0",
+  "description": "Baixa vídeos de cursos: Hotmart, Cakto e defiverso (estruturado, em lote) + captura genérica de HLS/mp4 em qualquer site.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "sidePanel",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "declarative_net_request": {
     "rule_resources": [
-      { "id": "hotmart_referer", "enabled": false, "path": "rules.json" }
+      {
+        "id": "hotmart_referer",
+        "enabled": false,
+        "path": "rules.json"
+      }
     ]
   },
-  "background": { "service_worker": "background.js" },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["https://hotmart.com/*"],
-      "js": ["hook.js"],
+      "matches": [
+        "https://hotmart.com/*"
+      ],
+      "js": [
+        "hook.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     }
   ],
-  "action": { "default_title": "hotmart-dl — abrir painel" },
-  "side_panel": { "default_path": "popup.html" },
+  "action": {
+    "default_title": "hotmart-dl — abrir painel"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   "web_accessible_resources": [
-    { "resources": ["extractor.js"], "matches": ["https://*.hotmart.com/*"] }
+    {
+      "resources": [
+        "extractor.js"
+      ],
+      "matches": [
+        "https://*.hotmart.com/*"
+      ]
+    }
   ]
 }

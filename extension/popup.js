@@ -1,7 +1,7 @@
 // Popup: injeta o extractor no MAIN world da aba do curso, mostra a arvore com
 // checkboxes + padrao de nome, e exporta um course.json so com o que foi marcado.
 // Módulo ES: escopo próprio. Importa a API de download do download.js.
-import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob, saveDescription } from "./download.js";
+import { downloadCourse, scanLesson, downloadGeneric, downloadResolved, saveTs, saveBlob, saveDescription, downloadHlsParts, safeRel } from "./download.js";
 const $ = (s) => document.querySelector(s);
 const PRESETS = [
   { id: "mod_MA", label: "Módulo + M00A00 (padrão)", folder: "Modulo {mm} - {module}", file: "M{mm}A{aa} - {lesson}" },
@@ -237,7 +237,8 @@ async function onDownloadHere() {
   const n = currentNaming();
   const opts = { folderTpl: n.folder, fileTpl: n.file, doDesc: $("#optDesc").checked,
                  doAttach: $("#optAtt").checked, prefer: $("#res").value };
-  downloadCourse(jobs, DATA, opts, {
+  const engine = DATA.platform === "cakto" ? downloadCourseCakto : downloadCourse;
+  engine(jobs, DATA, opts, {
     stopped: () => dlStop,
     onLesson: (m, a, status, pct) => updateLessonRow(m, a, status, pct),
     onOverall: (done, total) => {
@@ -251,6 +252,51 @@ async function onDownloadHere() {
       setStatus(`Fim. vídeos=${sum.video} descrições=${sum.desc} materiais=${sum.att} bloqueadas=${sum.locked} falhas=${sum.fail}`);
     },
   });
+}
+
+// engine do Cakto: resolve cada aula via API (na página) e baixa o HLS público
+async function downloadCourseCakto(jobs, D, opts, cb) {
+  const total = jobs.length; let done = 0;
+  const sum = { video: 0, desc: 0, att: 0, locked: 0, fail: 0 };
+  for (const job of jobs) {
+    if (cb.stopped && cb.stopped()) break;
+    const tag = "M" + pad2(job.m) + "A" + pad2(job.a);
+    const dir = opts.folderTpl && opts.folderTpl.trim() ? render(opts.folderTpl, job.m, job.a, job.mname, job.name) + "/" : "";
+    const base = dir + render(opts.fileTpl, job.m, job.a, job.mname, job.name);
+    cb.onLesson(job.m, job.a, "resolvendo", null);
+    let res;
+    try {
+      const r = await chrome.scripting.executeScript({ target: { tabId: D.tabId }, world: "MAIN", func: (id) => window.__ck.resolve(id), args: [job.hash] });
+      res = r && r[0] && r[0].result;
+    } catch (e) { res = { error: e.message }; }
+    if (!res || res.error || !res.m3u8) { cb.onLesson(job.m, job.a, "erro", null); sum.fail++; done++; cb.onOverall(done, total); continue; }
+    let okVideo = false;
+    for (let attempt = 0; attempt < 2 && !okVideo && !(cb.stopped && cb.stopped()); attempt++) {
+      try {
+        const parts = await downloadHlsParts(res.m3u8, (p) => cb.onLesson(job.m, job.a, "baixando", p), opts.prefer);
+        await saveTs(parts, base);
+        okVideo = true; sum.video++;
+      } catch (e) { if (attempt === 1) { cb.onLesson(job.m, job.a, "erro", null); sum.fail++; } }
+    }
+    if (okVideo && opts.doAttach && res.files && res.files.length) {  // materiais (files) da aula
+      cb.onLesson(job.m, job.a, "materiais", null);
+      for (const f of res.files) {
+        const url = (f && (f.url || f.link || f.arquivo || f.file)) || (typeof f === "string" ? f : null);
+        if (!url || !/^https?:/.test(url)) continue;
+        try {
+          const blob = await fetch(url).then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.blob(); });
+          let fname = (f && (f.nome || f.name || f.titulo)) || decodeURIComponent(url.split("?")[0].split("/").pop() || "material");
+          const ext = (url.split("?")[0].match(/\.[a-z0-9]{2,5}$/i) || [""])[0];
+          if (ext && !new RegExp(ext.replace(".", "\\.") + "$", "i").test(fname)) fname += ext;
+          await saveBlob(blob, safeRel(dir + tag + " - " + fname));
+          sum.att++;
+        } catch (e) {}
+      }
+    }
+    if (okVideo) cb.onLesson(job.m, job.a, "ok", 1);
+    done++; cb.onOverall(done, total);
+  }
+  cb.onDone(sum);
 }
 
 // ---- modo genérico (qualquer site sem adaptador dedicado) ----
@@ -478,6 +524,8 @@ function resetPanel() {  // volta o painel ao estado inicial (pro "reler" re-det
   const f = document.querySelector("footer"); if (f) f.style.display = "";
   ["#tree", "#plist", "#glist", "#pfails"].forEach((s) => { const e = $(s); if (e) e.innerHTML = ""; });
   const ps = $("#pstatus"); if (ps) ps.textContent = "";
+  $("#go").style.display = "";  // Cakto esconde estes; restaura ao reler
+  const od = $("#optDesc"); if (od && od.closest(".opt")) od.closest(".opt").style.display = "";
   $("#course").textContent = "Lendo…";
 }
 async function reler() { resetPanel(); await route(); }
@@ -488,6 +536,7 @@ async function route() {
     $("#course").textContent = "Abra a página de um vídeo (site http/https).";
     return;
   }
+  if (/^https:\/\/members\.cakto\.com\.br\//.test(tab.url)) { await initCakto(tab); return; }  // adaptador dedicado (API)
   if (/^https:\/\/(.*\.)?defiverso\.com\//.test(tab.url)) { await initDefiverso(tab); return; }  // adaptador dedicado
   if (!/^https:\/\/(.*\.)?hotmart\.com\//.test(tab.url)) { await initGeneric(tab); return; }  // multi-site genérico
   // re-tenta algumas vezes: ao trocar de curso a árvore React pode estar montando
@@ -504,8 +553,15 @@ async function route() {
   if (!data) { $("#course").textContent = "Nada retornado. Recarregue a página do curso."; return; }
   if (data.error) { $("#course").textContent = data.error; return; }
   DATA = data;
+  const nv = DATA.modules.reduce((s, M) => s + M.lessons.filter((l) => l.hasVideo).length, 0);
+  $("#course").textContent = `${DATA.course} — ${DATA.modules.length} módulos, ${nv} vídeos`;
+  $("#go").style.display = "";  // exportar course.json é recurso do Hotmart
+  mountStructured();
+  panelScan();   // Hotmart: preenche os ícones de descrição/material em segundo plano
+}
 
-  // preset dropdown
+// monta a UI estruturada (árvore de módulos/aulas) a partir de DATA — Hotmart e Cakto
+function mountStructured() {
   const sel = $("#preset");
   sel.innerHTML = "";  // evita opções duplicadas ao reler
   PRESETS.forEach((p) => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.label; sel.appendChild(o); });
@@ -519,17 +575,37 @@ async function route() {
   };
   $("#folderTpl").oninput = updatePreview;
   $("#fileTpl").oninput = updatePreview;
-
-  const nv = DATA.modules.reduce((s, M) => s + M.lessons.filter((l) => l.hasVideo).length, 0);
-  $("#course").textContent = `${DATA.course} — ${DATA.modules.length} módulos, ${nv} vídeos`;
   $("#controls").style.display = "flex";
   buildTree();
-  panelScan();   // em segundo plano: preenche os ícones de descrição/material
   $("#all").onclick = () => { document.querySelectorAll(".les input:not([disabled])").forEach((c) => c.checked = true); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); };
   $("#none").onclick = () => { document.querySelectorAll(".les input").forEach((c) => c.checked = false); document.querySelectorAll(".mod").forEach((m, i) => syncModChk(m, DATA.modules[i])); updatePreview(); };
   $("#go").onclick = exportJSON;
   $("#dlhere").onclick = onDownloadHere;
   updatePreview();
+}
+
+// ---- adaptador dedicado: Cakto (members.cakto.com.br) — via API, reusa a árvore estruturada ----
+async function initCakto(tab) {
+  try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", files: ["cakto.js"] }); }
+  catch (e) { $("#course").textContent = "Falha ao injetar o adaptador: " + e.message; return; }
+  let listing;
+  try {
+    const r = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: () => window.__ck.list() });
+    listing = r && r[0] && r[0].result;
+  } catch (e) { $("#course").textContent = "Falha ao ler o curso: " + e.message; return; }
+  if (!listing || listing.error || !listing.modules) { $("#course").textContent = (listing && listing.error) || "Não foi possível ler o curso. Abra um curso e clique ↻ reler."; return; }
+  DATA = {
+    course: listing.course, platform: "cakto", tabId: tab.id, courseId: listing.courseId,
+    modules: listing.modules.map((M, mi) => ({
+      m: mi + 1, name: M.name,
+      lessons: M.lessons.map((l, li) => ({ a: li + 1, name: l.nome, hash: l.id, hasVideo: true, locked: false, dur: 0 })),
+    })).filter((M) => M.lessons.length),
+  };
+  const nl = DATA.modules.reduce((s, M) => s + M.lessons.length, 0);
+  $("#course").textContent = `${DATA.course} — ${DATA.modules.length} módulos, ${nl} aulas`;
+  $("#go").style.display = "none";                       // course.json (CLI) é só Hotmart
+  const od = $("#optDesc"); if (od && od.closest(".opt")) od.closest(".opt").style.display = "none";  // Cakto não tem descrição por aula
+  mountStructured();
 }
 
 async function init() {
